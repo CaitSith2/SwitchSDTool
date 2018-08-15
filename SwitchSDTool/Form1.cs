@@ -28,8 +28,6 @@ namespace SwitchSDTool
             InitializeComponent();
         }
 
-       
-
         private void btnSelectSD_Click(object sender, EventArgs e)
         {
             fbdSDCard.ShowNewFolderButton = false;
@@ -597,6 +595,13 @@ namespace SwitchSDTool
                 if (File.Exists(ncafile)) continue;
 
                 var ncaFileParts = Directory.GetFiles(nca).OrderBy(x => x).ToList();
+                if (ncaFileParts.Count == 0)
+                {
+                    UpdateStatus($@"Cannot decrypt {Path.GetFileName(nca)} as the directory is empty - Click me and check message for details.",
+                        $@"Directory ""{nca}"" is empty.");
+                    continue;
+                }
+
                 var file = ncaFileParts[0];
 
                 if (ncaFileParts.Count > 1)
