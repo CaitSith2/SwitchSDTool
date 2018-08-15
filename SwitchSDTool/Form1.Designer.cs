@@ -100,6 +100,7 @@ namespace SwitchSDTool
             this.ilGamesSmall = new System.Windows.Forms.ImageList(this.components);
             this.ilGamesLarge = new System.Windows.Forms.ImageList(this.components);
             this.ilGamesExtraLarge = new System.Windows.Forms.ImageList(this.components);
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -500,6 +501,7 @@ namespace SwitchSDTool
             this.tvGames.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvGames_AfterSelect);
             this.tvGames.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvGames_NodeMouseClick);
             this.tvGames.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvGames_NodeMouseDoubleClick);
+            this.tvGames.MouseHover += new System.EventHandler(this.tvGames_MouseHover);
             // 
             // ilGames
             // 
@@ -686,6 +688,7 @@ namespace SwitchSDTool
             this.tpLog.ResumeLayout(false);
             this.tpGames.ResumeLayout(false);
             this.scGames.Panel1.ResumeLayout(false);
+            this.scGames.Panel1.PerformLayout();
             this.scGames.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.scGames)).EndInit();
             this.scGames.ResumeLayout(false);
@@ -746,6 +749,7 @@ namespace SwitchSDTool
         private Button btnDeleteFromSD;
         private PictureBox pbGameIcon;
         private CheckBox cbDeleteLocal;
+        private ToolTip toolTip1;
     }
 }
 
