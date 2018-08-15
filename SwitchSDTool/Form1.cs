@@ -754,7 +754,10 @@ namespace SwitchSDTool
 
                 node = node?.Nodes.Add(titleID, $"{titleID} - [{type}]");
                 if (node == null)
-                    return;
+                {
+                    node = tvGames.Nodes.Add(newTitleID, $"{_titleNames[newTitleID]} - {newTitleID}");
+                    node.ImageIndex = node.SelectedImageIndex = 0;
+                }
 
                 node.Tag = titleID;
                 node.ImageIndex = node.Parent.ImageIndex;
@@ -764,12 +767,17 @@ namespace SwitchSDTool
 
             if (p == null)
             {
-                var gameNode = tvGames.Nodes.Add(newTitleID, "Unknown");
+                var node = tvGames.Nodes.Find(newTitleID, false).FirstOrDefault();
+                var basenode = node?.Nodes.Find($"{titleID} - [{type}]", false).FirstOrDefault();
+                if (basenode != null) return;
 
-                var gameNode1 = gameNode.Nodes.Add(newTitleID, $"{titleID} - [{type}]");
+                if(node == null)
+                    node = tvGames.Nodes.Add(newTitleID, $"Unknown - {newTitleID}");
+
+                var gameNode1 = node.Nodes.Add(titleID, $"{titleID} - [{type}]");
                 gameNode1.Tag = titleID;
 
-                gameNode.ImageIndex = gameNode.SelectedImageIndex = 0;
+                node.ImageIndex = node.SelectedImageIndex = 0;
                 gameNode1.ImageIndex = gameNode1.SelectedImageIndex = 0;
 
                 return;
