@@ -22,6 +22,7 @@ namespace SwitchSDTool
         private readonly Dictionary<string, Ticket> _tickets = new Dictionary<string, Ticket>();
         private readonly Dictionary<string, CNMT> _cnmtFiles = new Dictionary<string, CNMT>();
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
+        private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
 
         public Form1()
         {
@@ -720,6 +721,7 @@ namespace SwitchSDTool
             ilGames.Images.Clear();
             ilGamesLarge.Images.Clear();
             ilGamesExtraLarge.Images.Clear();
+            _controlNACP.Clear();
             GameImagesAdd(new Bitmap(pbGameIcon.InitialImage));
             pbGameIcon.Image = ilGamesExtraLarge.Images[0];
         }
@@ -731,6 +733,15 @@ namespace SwitchSDTool
             ilGames.Images.Add(b);
             ilGamesLarge.Images.Add(b);
             ilGamesExtraLarge.Images.Add(b);
+        }
+
+        private void UpdateImage(Bitmap b, int index)
+        {
+            ilGamesExtraSmall.Images[index] = new Bitmap(b, new Size(16, 16));
+            ilGamesSmall.Images[index] = new Bitmap(b, new Size(32, 32));
+            ilGames.Images[index] = new Bitmap(b, new Size(64, 64));
+            ilGamesLarge.Images[index] = new Bitmap(b, new Size(128, 128));
+            ilGamesExtraLarge.Images[index] = new Bitmap(b, new Size(256,256));
         }
 
         private void ReadControlInfo(string ncadir, string titleID, Process p)
@@ -783,41 +794,24 @@ namespace SwitchSDTool
                 return;
             }
             StartProcess(p);
+            var nacp = new ControlNACP(ncadir, newTitleID);
+            var titleIconPair = nacp.GetTitleNameIcon(tvLanguage);
 
-            using (var control = File.OpenRead(Path.Combine(ncadir, "control.nacp")))
+            _titleNames[newTitleID] = titleIconPair.Item1;
+            var gameNode = tvGames.Nodes.Add(newTitleID, $"{titleIconPair.Item1}");
+            gameNode.ToolTipText = $@"{titleIconPair.Item1}{Environment.NewLine}{titleIconPair.Item2}{
+                Environment.NewLine}{titleIconPair.Item3}{Environment.NewLine}{titleIconPair.Item4}";
+
+            GameImagesAdd(titleIconPair.Item5);
+            gameNode.ImageIndex = gameNode.SelectedImageIndex = ilGames.Images.Count - 1;
             {
-                for(var i = 0; i < 15; i++)
-                {
-                    var node = tvLanguage.Nodes[i];
-                    var offset = (int)node.Tag * 0x300;
-                    control.Seek(offset, SeekOrigin.Begin);
-                    var titlenameBytes = new byte[0x200];
-                    control.Read(titlenameBytes, 0, 0x200);
-
-                    var titlename = Encoding.UTF8.GetString(titlenameBytes);
-                    if (String.IsNullOrEmpty(titlename)) continue;
-                    var index = titlename.IndexOf("\0", StringComparison.Ordinal);
-                    if (index == 0) continue;
-                    if (index > 0) titlename = titlename.Substring(0, index);
-                    
-                    _titleNames[newTitleID] = titlename;
-                    var gameNode = tvGames.Nodes.Add(newTitleID, titlename);
-                    var lname = node.Text.Replace(" ", "");
-                    lname = Path.Combine(ncadir, $"icon_{lname}.dat");
-                    GameImagesAdd(LoadBitmapUnlocked(lname));
-                    gameNode.ImageIndex = gameNode.SelectedImageIndex = ilGames.Images.Count - 1;
-
-
-                    var gameNode1 = gameNode.Nodes.Add(newTitleID, $"{titleID} - [{type}]");
-                    gameNode1.Tag = titleID;
-                    gameNode1.ImageIndex = gameNode1.SelectedImageIndex = ilGames.Images.Count - 1;
-
-                    break;
-                }
+                var gameNode1 = gameNode.Nodes.Add(titleID, $"{titleID} - [{type}]");
+                gameNode1.Tag = titleID;
+                gameNode1.ImageIndex = gameNode1.SelectedImageIndex = ilGames.Images.Count - 1;
             }
 
-            foreach (var ncadirfile in Directory.GetFiles(ncadir))
-                File.Delete(ncadirfile);
+            _controlNACP[ilGames.Images.Count - 1] = nacp;
+
         }
 
         private Bitmap LoadBitmapUnlocked(string file_name)
@@ -1368,7 +1362,7 @@ namespace SwitchSDTool
             if (node == null) return;
             node.MoveUp();
             tvLanguage.SelectedNode = node;
-
+            UpdateTitleIcons();
         }
 
         private void btnLanguageDown_Click(object sender, EventArgs e)
@@ -1377,6 +1371,22 @@ namespace SwitchSDTool
             if (node == null) return;
             node.MoveDown();
             tvLanguage.SelectedNode = node;
+            UpdateTitleIcons();
+        }
+
+        private void UpdateTitleIcons()
+        {
+            for (var i = 0; i < tvGames.Nodes.Count; i++)
+            {
+                if (!_controlNACP.TryGetValue(tvGames.Nodes[i].ImageIndex, out var nacp)) continue;
+                var data = nacp.GetTitleNameIcon(tvLanguage);
+                _titleNames[nacp.BaseTitleID] = data.Item1;
+                tvGames.Nodes[i].Text = data.Item1;
+                tvGames.Nodes[i].ToolTipText =
+                    $@"{data.Item1}{Environment.NewLine}{data.Item2}{Environment.NewLine
+                        }{data.Item3}{Environment.NewLine}{data.Item4}";
+                UpdateImage(data.Item5, tvGames.Nodes[i].ImageIndex);
+            }
         }
 
         private void txtRSAKEK_TextChanged(object sender, EventArgs e)
@@ -1645,6 +1655,16 @@ namespace SwitchSDTool
                 if (ndpKey == null) return false;
                 var releaseKey = Convert.ToInt32(ndpKey.GetValue("Release"));
                 return releaseKey >= 461308;
+            }
+        }
+
+        private void tvGames_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.RemoveAll();
+            var selNode = tvGames.GetNodeAt(tvGames.PointToClient(Cursor.Position));
+            if (!string.IsNullOrEmpty((selNode?.Parent ?? selNode)?.ToolTipText))
+            {
+                toolTip1.SetToolTip(tvGames, (selNode.Parent ?? selNode).ToolTipText);
             }
         }
     }
