@@ -83,6 +83,7 @@ namespace SwitchSDTool
             this.tpLog = new System.Windows.Forms.TabPage();
             this.tpGames = new System.Windows.Forms.TabPage();
             this.scGames = new System.Windows.Forms.SplitContainer();
+            this.cbDeleteLocal = new System.Windows.Forms.CheckBox();
             this.btnDeleteFromSD = new System.Windows.Forms.Button();
             this.btnPackSelectedNSP = new System.Windows.Forms.Button();
             this.btnLargerIcons = new System.Windows.Forms.Button();
@@ -422,6 +423,7 @@ namespace SwitchSDTool
             // 
             // scGames.Panel1
             // 
+            this.scGames.Panel1.Controls.Add(this.cbDeleteLocal);
             this.scGames.Panel1.Controls.Add(this.btnDeleteFromSD);
             this.scGames.Panel1.Controls.Add(this.btnPackSelectedNSP);
             this.scGames.Panel1.Controls.Add(this.btnLargerIcons);
@@ -433,6 +435,17 @@ namespace SwitchSDTool
             this.scGames.Size = new System.Drawing.Size(902, 306);
             this.scGames.SplitterDistance = 125;
             this.scGames.TabIndex = 1;
+            // 
+            // cbDeleteLocal
+            // 
+            this.cbDeleteLocal.AutoSize = true;
+            this.cbDeleteLocal.Location = new System.Drawing.Point(6, 158);
+            this.cbDeleteLocal.Name = "cbDeleteLocal";
+            this.cbDeleteLocal.Size = new System.Drawing.Size(105, 30);
+            this.cbDeleteLocal.TabIndex = 16;
+            this.cbDeleteLocal.Text = "Also Delete local\r\ncopy";
+            this.cbDeleteLocal.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.cbDeleteLocal.UseVisualStyleBackColor = true;
             // 
             // btnDeleteFromSD
             // 
@@ -732,6 +745,7 @@ namespace SwitchSDTool
         private Button btnPackSelectedNSP;
         private Button btnDeleteFromSD;
         private PictureBox pbGameIcon;
+        private CheckBox cbDeleteLocal;
     }
 }
 
