@@ -1503,13 +1503,16 @@ namespace SwitchSDTool
                         DeleteSDFile(cnmt, tvGames.SelectedNode.Nodes[i]);
                 }
 
-                tvGames.Nodes.Remove(tvGames.SelectedNode);
+                if(cbDeleteLocal.Checked)
+                    tvGames.Nodes.Remove(tvGames.SelectedNode);
             }
             else    //Child node selected. Pack just that item only.
             {
                 if (tvGames.SelectedNode.Tag is string titleID && _cnmtFiles.TryGetValue(titleID, out var cnmt))
                     DeleteSDFile(cnmt, tvGames.SelectedNode);
                 var parent = tvGames.SelectedNode.Parent;
+
+                if (!cbDeleteLocal.Checked) return;
                 parent.Nodes.Remove(tvGames.SelectedNode);
                 if (parent.Nodes.Count == 0)
                     tvGames.Nodes.Remove(parent);
@@ -1525,11 +1528,17 @@ namespace SwitchSDTool
             foreach (var entry in cnmt.Entries)
             {
                 ncafile = sdcard.FirstOrDefault(x => x.Contains(entry.ID.ToHexString()));
-                if (ncafile != null) deleteSuccess &= DeleteSDNCA(ncafile);
+                if (ncafile != null)
+                    deleteSuccess &= DeleteSDNCA(ncafile);
+                else
+                    deleteSuccess &= DeleteLocalNCA(entry.ID.ToHexString() + ".nca");
             }
 
             ncafile = sdcard.FirstOrDefault(x => x.Contains(cnmt.CnmtFileName.Replace(".cnmt.nca","")));
-            if (ncafile != null) deleteSuccess &= DeleteSDNCA(ncafile);
+            if (ncafile != null)
+                deleteSuccess &= DeleteSDNCA(ncafile);
+            else
+                deleteSuccess &= DeleteLocalNCA(cnmt.CnmtFileName.Replace(".cnmt.nca", ".nca"));
 
             _cnmtFiles.Remove(cnmt.TitleID.ToHexString());
 
@@ -1540,6 +1549,7 @@ namespace SwitchSDTool
 
         private bool DeleteSDNCA(string ncafile)
         {
+            bool result = true;
             try
             {
                 foreach (var file in Directory.GetFiles(ncafile))
@@ -1551,21 +1561,40 @@ namespace SwitchSDTool
                     if (Directory.GetDirectories(ncafileroot).Length == 0)
                         Directory.Delete(ncafileroot);
                 }
-                catch {/**/}
-
-                try
+                catch (Exception ex)
                 {
-                    var ncafilename = Path.GetFileName(ncafile);
-                    if (File.Exists(Path.Combine(Configuration.Data.Decryptionpath, ncafilename)))
-                        File.Delete(Path.Combine(Configuration.Data.Decryptionpath, ncafilename));
+                    AppendStatus(string.Empty,
+                        $@"[WARNING] - Failed to delete directory {Path.GetDirectoryName(ncafile)}:{Environment.NewLine}",
+                        $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 }
-                catch {/**/}
 
+                result &= DeleteLocalNCA(Path.GetFileName(ncafile));
             }
             catch (Exception ex)
             {
                 AppendStatus(string.Empty,
-                    $@"Failed to delete {ncafile} due to an exception:{Environment.NewLine}",
+                    $@"[FATAL] - Failed to delete SD Card copy of {ncafile} due to an exception:{Environment.NewLine}",
+                    $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
+                return false;
+            }
+
+            return result;
+        }
+
+        private bool DeleteLocalNCA(string ncafilename)
+        {
+            if (!cbDeleteLocal.Checked)
+                return true;
+
+            try
+            {
+                if (File.Exists(Path.Combine(Configuration.Data.Decryptionpath, ncafilename)))
+                    File.Delete(Path.Combine(Configuration.Data.Decryptionpath, ncafilename));
+            }
+            catch (Exception ex)
+            {
+                AppendStatus(string.Empty,
+                    $@"[FATAL] - Failed to delete local copy of {ncafilename} due to an exception:{Environment.NewLine}",
                     $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 return false;
             }
