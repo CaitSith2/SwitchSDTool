@@ -924,14 +924,6 @@ namespace SwitchSDTool
 
         }
 
-        private Bitmap LoadBitmapUnlocked(string file_name)
-        {
-            using (Bitmap bm = new Bitmap(file_name))
-            {
-                return new Bitmap(bm);
-            }
-        }
-
 
         private void btnPackNSP_Click(object sender, EventArgs e)
         {
