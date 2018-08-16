@@ -865,16 +865,19 @@ namespace SwitchSDTool
             if (_titleNames.ContainsKey(newTitleID))
             {
                 var node = tvGames.Nodes.Find(newTitleID, false).FirstOrDefault();
-
-                var basenode = node?.Nodes.Find($"{titleID} - [{type}]", false).FirstOrDefault();
-                if (basenode != null) return;
-
-                node = node?.Nodes.Add(titleID, $"{titleID} - [{type}]");
                 if (node == null)
                 {
                     node = tvGames.Nodes.Add(newTitleID, $"{_titleNames[newTitleID]} - {newTitleID}");
                     node.ImageIndex = node.SelectedImageIndex = 0;
                 }
+
+                for (var i = 0; i < node.Nodes.Count; i++)
+                {
+                    if (!node.Nodes[i].Text.Equals($"{titleID} - [{type}]")) continue;
+                    return;
+                }
+
+                node = node.Nodes.Add(titleID, $"{titleID} - [{type}]");
 
                 node.Tag = titleID;
                 node.ImageIndex = node.Parent.ImageIndex;
