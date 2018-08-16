@@ -1791,23 +1791,6 @@ namespace SwitchSDTool
                 toolTip1.SetToolTip(tvGames, (selNode.Parent ?? selNode).ToolTipText);
             }
         }
-        /*
-         var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
-            var data = result
-                ? nacp.GetTitleNameIcon(tvLanguage)
-                : (string.Empty, string.Empty, string.Empty, string.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
-            var languages = result
-                ? nacp.Languages
-                : new List<Languages>();
-
-            pbGameIcon.Image = data.Item5;
-            txtGameInfo.Text = !result 
-                ? string.Empty
-                    : $@"Game: {data.Item1}{Environment.NewLine
-                    }Devloper: {data.Item2}{Environment.NewLine
-                    }Version: {data.Item3}{Environment.NewLine
-                    }Base Title ID: {data.Item4}";
-         */
 
         private void tvLanguage_AfterSelect(object sender, TreeViewEventArgs e)
         {
