@@ -12,6 +12,7 @@ using System.Threading;
 using System.Windows.Forms;
 using CTR;
 using Microsoft.Win32;
+using SwitchSDTool.Properties;
 
 namespace SwitchSDTool
 {
@@ -23,6 +24,13 @@ namespace SwitchSDTool
         private readonly Dictionary<string, CNMT> _cnmtFiles = new Dictionary<string, CNMT>();
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
+
+        private readonly string _fixedKeys = Path.Combine("Tools", "FixedKeys.txt");
+        private readonly string _profileKeys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch", "prod.keys");
+        
+        private string FixedKeysArgument => File.Exists(_fixedKeys)
+            ? $@"--keyset={_fixedKeys} "
+            : (File.Exists(_profileKeys) ? "" : $@"--keyset=keys.txt ");
 
         public Form1()
         {
@@ -291,6 +299,17 @@ namespace SwitchSDTool
                 splitContainerTop.Panel1.Enabled = false;
                 tcTabs.Enabled = false;
             }
+
+            var generatedKeys = _validKeySizes.Keys.Where(x => x.EndsWith("_")).ToArray();
+            foreach (var key in generatedKeys)
+            {
+                var keysize = _validKeySizes[key];
+                _validKeySizes.Remove(key);
+                for (var i = 0; i < 32; i++)
+                {
+                    _validKeySizes[key + $"{i:00}"] = keysize;
+                }
+            }
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -443,19 +462,81 @@ namespace SwitchSDTool
             {"master_key_04", "***REMOVED***".ToByte()},
         };
 
-        private bool KeysTxtHasRequiredKeys(string filename)
+        private static readonly Dictionary<string, int> _validKeySizes = new Dictionary<string, int>
+        {
+            {"aes_kek_generation_source", 16},
+            {"aes_key_generation_source", 16},
+            {"key_area_key_application_source", 16},
+            {"key_area_key_ocean_source", 16},
+            {"key_area_key_system_source", 16},
+            {"titlekek_source", 16},
+            {"header_kek_source", 16},
+            {"header_key_source", 32},
+            {"header_key", 32},
+            {"package2_key_source", 16},
+            {"sd_card_kek_source", 16},
+            {"sd_card_nca_key_source", 32},
+            {"sd_card_save_key_source", 32},
+            {"master_key_source", 16},
+            {"keyblob_mac_key_source", 16},
+            {"secure_boot_key", 16},
+            {"tsec_key", 16},
+            {"beta_nca0_exponent", 256},
+
+            {"keyblob_key_source_", 16},
+            {"keyblob_key_", 16},
+            {"keyblob_mac_key_", 16},
+            {"encrypted_keyblob_", 176},
+            {"keyblob_", 144},
+            {"master_key_", 16},
+            {"package1_key_", 16},
+            {"package2_key_", 16},
+            {"titlekek_", 16},
+            {"key_area_key_application_", 16},
+            {"key_area_key_ocean_", 16},
+            {"key_area_key_system_", 16},
+            {"eticket_rsa_kek", 16 }
+            
+        };
+
+        private (bool,string) KeysTxtHasRequiredKeys(string filename)
         {
             var keys = new Dictionary<string, byte[]>();
             using (var sr = new StreamReader(new FileStream(filename, FileMode.Open)))
             {
+                var keyname = string.Empty;
+                var keyvalue = string.Empty;
                 while (!sr.EndOfStream)
                 {
                     var line = sr.ReadLine();
                     if (line == null) continue;
                     var split = line.Split(new[] {",", "="}, StringSplitOptions.None).Select(x => x.ToLowerInvariant().Trim()).ToArray();
-                    if (split.Length != 2) continue;
-                    keys[split[0]] = split[1].ToByte();
+                    switch (split.Length)
+                    {
+                        case 1 when keyname == string.Empty:
+                            continue;
+                        case 1:
+                            keyvalue += Regex.Replace(split[0], @"\s+", "");
+                            break;
+                        case 2:
+                            keyname = split[0];
+                            keyvalue = Regex.Replace(split[1], @"\s+", "");
+                            break;
+                        default:
+                            continue;
+                    }
+                    if (keyvalue.Any(x => !"0123456789ABCDEFabcdef".Contains(x))) continue;
+
+                    if(!_validKeySizes.TryGetValue(keyname, out var keysize) || keyvalue.ToByte().Length == keysize)
+                        keys[keyname] = keyvalue.ToByte();
                 }
+            }
+
+            foreach (var keyname in _validKeySizes.Keys)
+            {
+                var keyvalue = _validKeySizes[keyname];
+                if (keys.TryGetValue(keyname, out var keyBytes) && keyBytes.Length != keyvalue)
+                    keys.Remove(keyname);
             }
 
             foreach (var keyname in _keyHashes.Keys)
@@ -463,38 +544,63 @@ namespace SwitchSDTool
                 if (!keys.TryGetValue(keyname, out var keyData))
                 {
                     UpdateStatus($"Keys.txt is missing {keyname}");
-                    return false;
+                    return (false,null);
                 }
 
                 if (!SHA256.Create().ComputeHash(keyData).ToHexString().Equals(_keyHashes[keyname].ToHexString()))
                 {
                     UpdateStatus($"{keyname} in Keys.txt is invalid");
-                    return false;
+                    return (false,null);
                 }
             }
 
             if (!Configuration.VerifyETicketRSAKEK() && keys.TryGetValue("eticket_rsa_kek", out var rsaKeyData))
                 txtRSAKEK.Text = rsaKeyData.ToHexString();
 
-            return true;
+            var keysText = string.Empty;
+            foreach (var kvp in keys)
+            {
+                keysText += $@"{kvp.Key}={kvp.Value.ToHexString()}{Environment.NewLine}";
+            }
+
+            return (true,keysText);
 
         }
 
         private bool CheckKeys()
         {
-            var keys = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (File.Exists(Path.Combine(keys, ".switch", "Prod.keys")))
+            if (File.Exists(_fixedKeys))
             {
-                return KeysTxtHasRequiredKeys(Path.Combine(keys, ".switch", "Prod.keys"));
+                var result = KeysTxtHasRequiredKeys(_fixedKeys);
+                if(result.Item1 && !File.Exists("keys.txt"))
+                return true;
+            }
+
+            if (File.Exists(_profileKeys))
+            {
+                var result = KeysTxtHasRequiredKeys(_profileKeys);
+                if (!result.Item1) return false;
+                try
+                {
+                    File.WriteAllText(_fixedKeys, result.Item2);
+                }
+                catch { /**/ }
+                return true;
             }
 
             if (File.Exists("keys.txt"))
             {
                 var result = KeysTxtHasRequiredKeys("keys.txt");
-                if (!result) return false;
+                if (!result.Item1) return false;
 
-                Directory.CreateDirectory(Path.Combine(keys, ".switch"));
-                File.Copy("keys.txt", Path.Combine(keys, ".switch", "Prod.keys"));
+                try
+                {
+                    File.WriteAllText(_fixedKeys, result.Item2);
+                }
+                catch { /**/ }
+
+                //Directory.CreateDirectory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch"));
+                //File.Copy("keys.txt", _profileKeys);
                 return true;
             }
 
@@ -659,7 +765,7 @@ namespace SwitchSDTool
 
                 InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                 p.StartInfo.Arguments =
-                    $@"-t nax0 --sdseed={_sdKey.ToHexString()} --sdpath=""/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{
+                    $@"{FixedKeysArgument}-t nax0 --sdseed={_sdKey.ToHexString()} --sdpath=""/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{
                             Path.GetFileName(nca)
                         }"" --plaintext=""{ncafile}"" ""{file}""";
                 StartProcess(p, ncafile);
@@ -801,6 +907,7 @@ namespace SwitchSDTool
             var gameNode = tvGames.Nodes.Add(newTitleID, $"{titleIconPair.Item1}");
             gameNode.ToolTipText = $@"{titleIconPair.Item1}{Environment.NewLine}{titleIconPair.Item2}{
                 Environment.NewLine}{titleIconPair.Item3}{Environment.NewLine}{titleIconPair.Item4}";
+            
 
             GameImagesAdd(titleIconPair.Item5);
             gameNode.ImageIndex = gameNode.SelectedImageIndex = ilGames.Images.Count - 1;
@@ -1289,7 +1396,7 @@ namespace SwitchSDTool
                 if (filelen > 0x8000)
                     continue;
 
-                p.StartInfo.Arguments = $@"""{ncafile}""";
+                p.StartInfo.Arguments = $@"{FixedKeysArgument}""{ncafile}""";
                 StartProcess(p);
 
                 var match1 = Regex.Match(_message, "Content Type: *(.*)\n");
@@ -1303,7 +1410,7 @@ namespace SwitchSDTool
 
                 // = ncafile;
                 p.StartInfo.Arguments =
-                    $@"--header={Path.Combine(ncadir, "Header.bin")} --section0dir={
+                    $@"{FixedKeysArgument}--header={Path.Combine(ncadir, "Header.bin")} --section0dir={
                             Path.Combine(ncadir, "section0")
                         } ""{ncafile}""";
                 StartProcess(p);
@@ -1338,7 +1445,7 @@ namespace SwitchSDTool
             foreach (var cnmt in controls)
             {
                 var controldata = cnmt.Entries.First(x => x.Type == CNMT.ncaTypes.Control);
-                p.StartInfo.Arguments = $@"""{Path.Combine(Configuration.Data.Decryptionpath, controldata.ID.ToHexString() + ".nca")}"" --romfsdir={ncadir}";
+                p.StartInfo.Arguments = $@"{FixedKeysArgument}""{Path.Combine(Configuration.Data.Decryptionpath, controldata.ID.ToHexString() + ".nca")}"" --romfsdir={ncadir}";
                 ReadControlInfo(ncadir, cnmt.TitleID.ToHexString(), p);
                 SetProgress(++count);
             }
@@ -1506,7 +1613,7 @@ namespace SwitchSDTool
                 : string.Empty;
 
             txtMessage.Visible = txtMessage.Text != string.Empty;
-            pbGameIcon.Visible = txtMessage.Text == string.Empty;
+            scGameIconInfo.Visible = txtMessage.Text == string.Empty;
         }
 
         private void btnDeleteFromSD_Click(object sender, EventArgs e)
@@ -1637,10 +1744,28 @@ namespace SwitchSDTool
 
         private void tvGames_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            var index = tvGames.SelectedNode?.ImageIndex;
-            pbGameIcon.Image = !index.HasValue 
-                ? new Bitmap(1, 1) 
-                : ilGamesExtraLarge.Images[index.Value];
+            var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
+            var data = result
+                ? nacp.GetTitleNameIcon(tvLanguage)
+                : (string.Empty, string.Empty, string.Empty, string.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
+            var languages = result
+                ? nacp.Languages
+                : new List<Languages>();
+
+            pbGameIcon.Image = data.Item5;
+            txtGameInfo.Text = !result 
+                ? string.Empty
+                    : $@"Game: {data.Item1}{Environment.NewLine
+                    }Devloper: {data.Item2}{Environment.NewLine
+                    }Version: {data.Item3}{Environment.NewLine
+                    }Base Title ID: {data.Item4}";
+            
+            for (var i = 0; i < 15; i++)
+            {
+                var language = (Languages) tvLanguage.Nodes[i].Tag;
+                tvLanguage.Nodes[i].ImageIndex = tvLanguage.Nodes[i].SelectedImageIndex =
+                    languages.Contains(language) ? 1 : 0;
+            }
         }
 
         private void tvGames_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
@@ -1666,6 +1791,51 @@ namespace SwitchSDTool
             {
                 toolTip1.SetToolTip(tvGames, (selNode.Parent ?? selNode).ToolTipText);
             }
+        }
+        /*
+         var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
+            var data = result
+                ? nacp.GetTitleNameIcon(tvLanguage)
+                : (string.Empty, string.Empty, string.Empty, string.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
+            var languages = result
+                ? nacp.Languages
+                : new List<Languages>();
+
+            pbGameIcon.Image = data.Item5;
+            txtGameInfo.Text = !result 
+                ? string.Empty
+                    : $@"Game: {data.Item1}{Environment.NewLine
+                    }Devloper: {data.Item2}{Environment.NewLine
+                    }Version: {data.Item3}{Environment.NewLine
+                    }Base Title ID: {data.Item4}";
+         */
+
+        private void tvLanguage_AfterSelect(object sender, TreeViewEventArgs e)
+        {
+            var gameNode = tvGames.SelectedNode;
+            var languageNode = tvLanguage.SelectedNode;
+            if (gameNode == null || languageNode == null) return;
+            if (!_controlNACP.TryGetValue(gameNode.ImageIndex, out var nacp)) return;
+
+            if (languageNode.ImageIndex == 0)
+            {
+                var data = nacp.GetTitleNameIcon(tvLanguage);
+                pbGameIcon.Image = data.Item5;
+                txtGameInfo.Text = $@"Game: {data.Item1}{Environment.NewLine
+                    }Devloper: {data.Item2}{Environment.NewLine
+                    }Version: {data.Item3}{Environment.NewLine
+                    }Base Title ID: {data.Item4}";
+            }
+            else
+            {
+                var index = (int) languageNode.Tag;
+                pbGameIcon.Image = nacp.Icons[index];
+                txtGameInfo.Text = $@"Game: {nacp.TitleNames[index]}{Environment.NewLine
+                    }Devloper: {nacp.DeveloperNames[index]}{Environment.NewLine
+                    }Version: {nacp.Version}{Environment.NewLine
+                    }Base Title ID: {nacp.BaseTitleID}";
+            }
+
         }
     }
 }

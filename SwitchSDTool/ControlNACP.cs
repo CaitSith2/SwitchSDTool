@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Text;
@@ -14,6 +15,7 @@ namespace SwitchSDTool
         public string[] TitleNames;
         public string[] DeveloperNames;
         public Bitmap[] Icons;
+        public List<Languages> Languages;
 
         public (string, string, string, string, Bitmap) GetTitleNameIcon(TreeView language)
         {
@@ -36,6 +38,7 @@ namespace SwitchSDTool
             TitleNames = new string[15];
             DeveloperNames = new string[15];
             Icons = new Bitmap[15];
+            Languages = new List<Languages>();
             BaseTitleID = baseTitleID;
             using (var control = File.OpenRead(Path.Combine(ncadir, "control.nacp")))
             {
@@ -58,18 +61,6 @@ namespace SwitchSDTool
                     control.Read(titlenameBytes, 0, 0x200);
                     control.Read(developernameBytes, 0, 0x100);
 
-                    var titlename = Encoding.UTF8.GetString(titlenameBytes);
-                    if (string.IsNullOrEmpty(titlename)) continue;
-                    index = titlename.IndexOf("\0", StringComparison.Ordinal);
-                    if (index == 0) continue;
-                    if (index > 0) titlename = titlename.Substring(0, index);
-
-                    var developername = Encoding.UTF8.GetString(developernameBytes);
-                    if (string.IsNullOrEmpty(developername)) continue;
-                    index = developername.IndexOf("\0", StringComparison.Ordinal);
-                    if (index == 0) continue;
-                    if (index > 0) developername = developername.Substring(0, index);
-
                     var lname = ((Languages)i).ToString();
                     lname = Path.Combine(ncadir, $"icon_{lname}.dat");
                     if (!File.Exists(lname)) continue;
@@ -78,6 +69,18 @@ namespace SwitchSDTool
                     {
                         icon = new Bitmap(bm);
                     }
+                    Languages.Add((Languages)i);
+
+                    var titlename = Encoding.UTF8.GetString(titlenameBytes);
+                    index = titlename.IndexOf("\0", StringComparison.Ordinal);
+                    if (index == 0) titlename = string.Empty;
+                    if (index > 0) titlename = titlename.Substring(0, index);
+
+                    var developername = Encoding.UTF8.GetString(developernameBytes);
+                    index = developername.IndexOf("\0", StringComparison.Ordinal);
+                    if (index == 0) developername = string.Empty;
+                    if (index > 0) developername = developername.Substring(0, index);
+                    
 
                     TitleNames[i] = titlename;
                     DeveloperNames[i] = developername;

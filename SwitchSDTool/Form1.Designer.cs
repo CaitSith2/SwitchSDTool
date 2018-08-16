@@ -90,8 +90,6 @@ namespace SwitchSDTool
             this.btnSmallerIcon = new System.Windows.Forms.Button();
             this.tvGames = new System.Windows.Forms.TreeView();
             this.ilGames = new System.Windows.Forms.ImageList(this.components);
-            this.tpPreferedLanguage = new System.Windows.Forms.TabPage();
-            this.scLanguage = new System.Windows.Forms.SplitContainer();
             this.btnLanguageDown = new System.Windows.Forms.Button();
             this.btnLanguageUp = new System.Windows.Forms.Button();
             this.tvLanguage = new System.Windows.Forms.TreeView();
@@ -101,6 +99,10 @@ namespace SwitchSDTool
             this.ilGamesLarge = new System.Windows.Forms.ImageList(this.components);
             this.ilGamesExtraLarge = new System.Windows.Forms.ImageList(this.components);
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.panelLanguage = new System.Windows.Forms.Panel();
+            this.ilLanguage = new System.Windows.Forms.ImageList(this.components);
+            this.scGameIconInfo = new System.Windows.Forms.SplitContainer();
+            this.txtGameInfo = new System.Windows.Forms.TextBox();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -118,11 +120,11 @@ namespace SwitchSDTool
             this.scGames.Panel1.SuspendLayout();
             this.scGames.Panel2.SuspendLayout();
             this.scGames.SuspendLayout();
-            this.tpPreferedLanguage.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.scLanguage)).BeginInit();
-            this.scLanguage.Panel1.SuspendLayout();
-            this.scLanguage.Panel2.SuspendLayout();
-            this.scLanguage.SuspendLayout();
+            this.panelLanguage.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.scGameIconInfo)).BeginInit();
+            this.scGameIconInfo.Panel1.SuspendLayout();
+            this.scGameIconInfo.Panel2.SuspendLayout();
+            this.scGameIconInfo.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnPackNSP
@@ -251,7 +253,7 @@ namespace SwitchSDTool
             this.lblStatus});
             this.statusStrip1.Location = new System.Drawing.Point(0, 534);
             this.statusStrip1.Name = "statusStrip1";
-            this.statusStrip1.Size = new System.Drawing.Size(916, 22);
+            this.statusStrip1.Size = new System.Drawing.Size(1041, 22);
             this.statusStrip1.TabIndex = 1;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -291,14 +293,13 @@ namespace SwitchSDTool
             this.listStatus.Location = new System.Drawing.Point(3, 3);
             this.listStatus.Name = "listStatus";
             this.listStatus.ScrollAlwaysVisible = true;
-            this.listStatus.Size = new System.Drawing.Size(902, 306);
+            this.listStatus.Size = new System.Drawing.Size(1027, 306);
             this.listStatus.TabIndex = 13;
             this.listStatus.SelectedIndexChanged += new System.EventHandler(this.listStatus_SelectedIndexChanged);
             // 
             // splitContainer1
             // 
             this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.splitContainer1.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
             this.splitContainer1.Location = new System.Drawing.Point(0, 0);
             this.splitContainer1.Name = "splitContainer1";
             this.splitContainer1.Orientation = System.Windows.Forms.Orientation.Horizontal;
@@ -306,11 +307,12 @@ namespace SwitchSDTool
             // splitContainer1.Panel1
             // 
             this.splitContainer1.Panel1.Controls.Add(this.splitContainerTop);
+            this.splitContainer1.Panel1MinSize = 148;
             // 
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.tcTabs);
-            this.splitContainer1.Size = new System.Drawing.Size(916, 534);
+            this.splitContainer1.Size = new System.Drawing.Size(1041, 534);
             this.splitContainer1.SplitterDistance = 192;
             this.splitContainer1.TabIndex = 14;
             // 
@@ -340,9 +342,9 @@ namespace SwitchSDTool
             // 
             // splitContainerTop.Panel2
             // 
-            this.splitContainerTop.Panel2.Controls.Add(this.pbGameIcon);
+            this.splitContainerTop.Panel2.Controls.Add(this.scGameIconInfo);
             this.splitContainerTop.Panel2.Controls.Add(this.txtMessage);
-            this.splitContainerTop.Size = new System.Drawing.Size(916, 192);
+            this.splitContainerTop.Size = new System.Drawing.Size(1041, 192);
             this.splitContainerTop.SplitterDistance = 549;
             this.splitContainerTop.TabIndex = 14;
             // 
@@ -363,7 +365,7 @@ namespace SwitchSDTool
             this.pbGameIcon.InitialImage = global::SwitchSDTool.Properties.Resources.Ultra_microSDXC_UHS_I_A1_front;
             this.pbGameIcon.Location = new System.Drawing.Point(0, 0);
             this.pbGameIcon.Name = "pbGameIcon";
-            this.pbGameIcon.Size = new System.Drawing.Size(363, 192);
+            this.pbGameIcon.Size = new System.Drawing.Size(244, 192);
             this.pbGameIcon.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pbGameIcon.TabIndex = 14;
             this.pbGameIcon.TabStop = false;
@@ -376,7 +378,7 @@ namespace SwitchSDTool
             this.txtMessage.Name = "txtMessage";
             this.txtMessage.ReadOnly = true;
             this.txtMessage.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtMessage.Size = new System.Drawing.Size(363, 192);
+            this.txtMessage.Size = new System.Drawing.Size(488, 192);
             this.txtMessage.TabIndex = 13;
             this.txtMessage.Visible = false;
             // 
@@ -384,12 +386,11 @@ namespace SwitchSDTool
             // 
             this.tcTabs.Controls.Add(this.tpLog);
             this.tcTabs.Controls.Add(this.tpGames);
-            this.tcTabs.Controls.Add(this.tpPreferedLanguage);
             this.tcTabs.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tcTabs.Location = new System.Drawing.Point(0, 0);
             this.tcTabs.Name = "tcTabs";
             this.tcTabs.SelectedIndex = 0;
-            this.tcTabs.Size = new System.Drawing.Size(916, 338);
+            this.tcTabs.Size = new System.Drawing.Size(1041, 338);
             this.tcTabs.TabIndex = 0;
             this.tcTabs.Selected += new System.Windows.Forms.TabControlEventHandler(this.tcTabs_Selected);
             // 
@@ -399,7 +400,7 @@ namespace SwitchSDTool
             this.tpLog.Location = new System.Drawing.Point(4, 22);
             this.tpLog.Name = "tpLog";
             this.tpLog.Padding = new System.Windows.Forms.Padding(3);
-            this.tpLog.Size = new System.Drawing.Size(908, 312);
+            this.tpLog.Size = new System.Drawing.Size(1033, 312);
             this.tpLog.TabIndex = 0;
             this.tpLog.Text = "Log";
             this.tpLog.UseVisualStyleBackColor = true;
@@ -410,7 +411,7 @@ namespace SwitchSDTool
             this.tpGames.Location = new System.Drawing.Point(4, 22);
             this.tpGames.Name = "tpGames";
             this.tpGames.Padding = new System.Windows.Forms.Padding(3);
-            this.tpGames.Size = new System.Drawing.Size(908, 312);
+            this.tpGames.Size = new System.Drawing.Size(1033, 312);
             this.tpGames.TabIndex = 1;
             this.tpGames.Text = "Games";
             this.tpGames.UseVisualStyleBackColor = true;
@@ -432,8 +433,9 @@ namespace SwitchSDTool
             // 
             // scGames.Panel2
             // 
+            this.scGames.Panel2.Controls.Add(this.panelLanguage);
             this.scGames.Panel2.Controls.Add(this.tvGames);
-            this.scGames.Size = new System.Drawing.Size(902, 306);
+            this.scGames.Size = new System.Drawing.Size(1027, 306);
             this.scGames.SplitterDistance = 125;
             this.scGames.TabIndex = 1;
             // 
@@ -496,7 +498,7 @@ namespace SwitchSDTool
             this.tvGames.Location = new System.Drawing.Point(0, 0);
             this.tvGames.Name = "tvGames";
             this.tvGames.SelectedImageIndex = 0;
-            this.tvGames.Size = new System.Drawing.Size(773, 306);
+            this.tvGames.Size = new System.Drawing.Size(898, 306);
             this.tvGames.TabIndex = 0;
             this.tvGames.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvGames_AfterSelect);
             this.tvGames.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvGames_NodeMouseClick);
@@ -509,40 +511,12 @@ namespace SwitchSDTool
             this.ilGames.ImageSize = new System.Drawing.Size(64, 64);
             this.ilGames.TransparentColor = System.Drawing.Color.Transparent;
             // 
-            // tpPreferedLanguage
-            // 
-            this.tpPreferedLanguage.Controls.Add(this.scLanguage);
-            this.tpPreferedLanguage.Location = new System.Drawing.Point(4, 22);
-            this.tpPreferedLanguage.Name = "tpPreferedLanguage";
-            this.tpPreferedLanguage.Size = new System.Drawing.Size(908, 312);
-            this.tpPreferedLanguage.TabIndex = 2;
-            this.tpPreferedLanguage.Text = "Language";
-            this.tpPreferedLanguage.UseVisualStyleBackColor = true;
-            // 
-            // scLanguage
-            // 
-            this.scLanguage.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.scLanguage.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
-            this.scLanguage.Location = new System.Drawing.Point(0, 0);
-            this.scLanguage.Name = "scLanguage";
-            // 
-            // scLanguage.Panel1
-            // 
-            this.scLanguage.Panel1.Controls.Add(this.btnLanguageDown);
-            this.scLanguage.Panel1.Controls.Add(this.btnLanguageUp);
-            // 
-            // scLanguage.Panel2
-            // 
-            this.scLanguage.Panel2.Controls.Add(this.tvLanguage);
-            this.scLanguage.Size = new System.Drawing.Size(908, 312);
-            this.scLanguage.SplitterDistance = 115;
-            this.scLanguage.TabIndex = 2;
-            // 
             // btnLanguageDown
             // 
-            this.btnLanguageDown.Location = new System.Drawing.Point(8, 46);
+            this.btnLanguageDown.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.btnLanguageDown.Location = new System.Drawing.Point(0, 280);
             this.btnLanguageDown.Name = "btnLanguageDown";
-            this.btnLanguageDown.Size = new System.Drawing.Size(100, 26);
+            this.btnLanguageDown.Size = new System.Drawing.Size(165, 26);
             this.btnLanguageDown.TabIndex = 2;
             this.btnLanguageDown.Text = "Move Down";
             this.btnLanguageDown.UseVisualStyleBackColor = true;
@@ -550,9 +524,10 @@ namespace SwitchSDTool
             // 
             // btnLanguageUp
             // 
-            this.btnLanguageUp.Location = new System.Drawing.Point(8, 14);
+            this.btnLanguageUp.Dock = System.Windows.Forms.DockStyle.Top;
+            this.btnLanguageUp.Location = new System.Drawing.Point(0, 0);
             this.btnLanguageUp.Name = "btnLanguageUp";
-            this.btnLanguageUp.Size = new System.Drawing.Size(100, 26);
+            this.btnLanguageUp.Size = new System.Drawing.Size(165, 26);
             this.btnLanguageUp.TabIndex = 1;
             this.btnLanguageUp.Text = "Move Up";
             this.btnLanguageUp.UseVisualStyleBackColor = true;
@@ -562,7 +537,9 @@ namespace SwitchSDTool
             // 
             this.tvLanguage.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tvLanguage.HideSelection = false;
-            this.tvLanguage.Location = new System.Drawing.Point(0, 0);
+            this.tvLanguage.ImageIndex = 0;
+            this.tvLanguage.ImageList = this.ilLanguage;
+            this.tvLanguage.Location = new System.Drawing.Point(0, 26);
             this.tvLanguage.Name = "tvLanguage";
             treeNode1.Name = "nodeAmericanEnglish";
             treeNode1.Tag = "0";
@@ -625,8 +602,10 @@ namespace SwitchSDTool
             treeNode13,
             treeNode14,
             treeNode15});
-            this.tvLanguage.Size = new System.Drawing.Size(789, 312);
+            this.tvLanguage.SelectedImageIndex = 0;
+            this.tvLanguage.Size = new System.Drawing.Size(165, 254);
             this.tvLanguage.TabIndex = 0;
+            this.tvLanguage.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvLanguage_AfterSelect);
             // 
             // timer1
             // 
@@ -658,11 +637,56 @@ namespace SwitchSDTool
             this.ilGamesExtraLarge.ImageSize = new System.Drawing.Size(256, 256);
             this.ilGamesExtraLarge.TransparentColor = System.Drawing.Color.Transparent;
             // 
+            // panelLanguage
+            // 
+            this.panelLanguage.Controls.Add(this.tvLanguage);
+            this.panelLanguage.Controls.Add(this.btnLanguageUp);
+            this.panelLanguage.Controls.Add(this.btnLanguageDown);
+            this.panelLanguage.Dock = System.Windows.Forms.DockStyle.Right;
+            this.panelLanguage.Location = new System.Drawing.Point(733, 0);
+            this.panelLanguage.Name = "panelLanguage";
+            this.panelLanguage.Size = new System.Drawing.Size(165, 306);
+            this.panelLanguage.TabIndex = 0;
+            // 
+            // ilLanguage
+            // 
+            this.ilLanguage.ImageStream = ((System.Windows.Forms.ImageListStreamer)(resources.GetObject("ilLanguage.ImageStream")));
+            this.ilLanguage.TransparentColor = System.Drawing.Color.Transparent;
+            this.ilLanguage.Images.SetKeyName(0, "message-16-error.png");
+            this.ilLanguage.Images.SetKeyName(1, "message-16-ok.png");
+            // 
+            // scGameIconInfo
+            // 
+            this.scGameIconInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.scGameIconInfo.Location = new System.Drawing.Point(0, 0);
+            this.scGameIconInfo.Name = "scGameIconInfo";
+            // 
+            // scGameIconInfo.Panel1
+            // 
+            this.scGameIconInfo.Panel1.Controls.Add(this.pbGameIcon);
+            // 
+            // scGameIconInfo.Panel2
+            // 
+            this.scGameIconInfo.Panel2.Controls.Add(this.txtGameInfo);
+            this.scGameIconInfo.Size = new System.Drawing.Size(488, 192);
+            this.scGameIconInfo.SplitterDistance = 244;
+            this.scGameIconInfo.TabIndex = 14;
+            // 
+            // txtGameInfo
+            // 
+            this.txtGameInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.txtGameInfo.Location = new System.Drawing.Point(0, 0);
+            this.txtGameInfo.Multiline = true;
+            this.txtGameInfo.Name = "txtGameInfo";
+            this.txtGameInfo.ReadOnly = true;
+            this.txtGameInfo.Size = new System.Drawing.Size(240, 192);
+            this.txtGameInfo.TabIndex = 0;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(916, 556);
+            this.ClientSize = new System.Drawing.Size(1041, 556);
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.statusStrip1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
@@ -692,11 +716,12 @@ namespace SwitchSDTool
             this.scGames.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.scGames)).EndInit();
             this.scGames.ResumeLayout(false);
-            this.tpPreferedLanguage.ResumeLayout(false);
-            this.scLanguage.Panel1.ResumeLayout(false);
-            this.scLanguage.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.scLanguage)).EndInit();
-            this.scLanguage.ResumeLayout(false);
+            this.panelLanguage.ResumeLayout(false);
+            this.scGameIconInfo.Panel1.ResumeLayout(false);
+            this.scGameIconInfo.Panel2.ResumeLayout(false);
+            this.scGameIconInfo.Panel2.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.scGameIconInfo)).EndInit();
+            this.scGameIconInfo.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -732,8 +757,6 @@ namespace SwitchSDTool
         private TabPage tpLog;
         private TabPage tpGames;
         private TreeView tvGames;
-        private TabPage tpPreferedLanguage;
-        private SplitContainer scLanguage;
         private Button btnLanguageDown;
         private Button btnLanguageUp;
         private TreeView tvLanguage;
@@ -750,6 +773,10 @@ namespace SwitchSDTool
         private PictureBox pbGameIcon;
         private CheckBox cbDeleteLocal;
         private ToolTip toolTip1;
+        private Panel panelLanguage;
+        private ImageList ilLanguage;
+        private SplitContainer scGameIconInfo;
+        private TextBox txtGameInfo;
     }
 }
 
