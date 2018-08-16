@@ -1737,11 +1737,12 @@ namespace SwitchSDTool
             tvGames_AfterSelect(null, null);
         }
 
+        private TreeNode _previouslySelectedParentNode;
         private TreeNode _previouslySelectedNode;
         private void tvGames_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (_previouslySelectedNode == (tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode)) return;
-            _previouslySelectedNode = tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode;
+            if (_previouslySelectedNode == tvGames.SelectedNode) return;
+            _previouslySelectedNode = tvGames.SelectedNode;
 
             var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
             var data = result
@@ -1758,7 +1759,11 @@ namespace SwitchSDTool
                     }Devloper: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
                     }Base Title ID: {data.Item4}";
-            
+
+            txtGameInfo.Text += AddNCAMetaInfo();
+
+            if (_previouslySelectedParentNode == (tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode)) return;
+            _previouslySelectedParentNode = tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode;
             for (var i = 0; i < 15; i++)
             {
                 var language = (Languages) tvLanguage.Nodes[i].Tag;
@@ -1818,6 +1823,27 @@ namespace SwitchSDTool
                     }Base Title ID: {nacp.BaseTitleID}";
             }
 
+            txtGameInfo.Text += AddNCAMetaInfo();
+        }
+
+        private string AddNCAMetaInfo()
+        {
+            if(tvGames.SelectedNode?.Parent == null)
+                return string.Empty;
+
+            var output = $@"{Environment.NewLine}{Environment.NewLine}";
+            var cnmt = _cnmtFiles[(string) tvGames.SelectedNode.Tag];
+            output += $@"Title ID: {tvGames.SelectedNode.Tag}{Environment.NewLine}";
+            output += $@"Type: {cnmt.Type}{Environment.NewLine}{Environment.NewLine}";
+            output += $@"{cnmt.CnmtFileName.Replace(".cnmt", "")} (Meta){Environment.NewLine}";
+            foreach (var entry in cnmt.Entries)
+            {
+                var file = Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca");
+                if (!File.Exists(file)) continue;
+                output += $@"{entry.ID.ToHexString() + ".nca"} ({entry.Type}){Environment.NewLine}";
+            }
+
+            return output;
         }
 
         private void tvLanguage_MouseClick(object sender, MouseEventArgs e)
