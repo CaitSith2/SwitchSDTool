@@ -44,7 +44,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>embedded</DebugType>
+    <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
@@ -94,6 +94,7 @@
     <Compile Include="AesCTR.cs" />
     <Compile Include="CNMT.cs" />
     <Compile Include="Configuration.cs" />
+    <Compile Include="ControlNACP.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
