@@ -606,6 +606,7 @@ namespace SwitchSDTool
             this.tvLanguage.Size = new System.Drawing.Size(165, 254);
             this.tvLanguage.TabIndex = 0;
             this.tvLanguage.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvLanguage_AfterSelect);
+            this.tvLanguage.MouseClick += new System.Windows.Forms.MouseEventHandler(this.tvLanguage_MouseClick);
             // 
             // timer1
             // 
