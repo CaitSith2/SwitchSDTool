@@ -25,7 +25,7 @@ Step 19: Click on Select SD Folder. Choose the Drive that the SD is mounted to.
 Step 20: Click on Select System Path. Choose the Drive letter you mounted the SYSTEM partition to. (A drive by default.)
 Step 21: Click on Select Decryption Path. Choose where you want the decrypted NCAs to reside.
 Step 22: Click on Select NSP Output Path. Choose where you want your NSP dumps to be saved.
-Step 23: Google for eticket_rsa_kek.
+Step 23: Google for eticket_rsa_kek. (if your keys.txt doesn't already contain this key.)
 Step 24: Paste the results in the text field that says "Replace me with the actual eticket_rsa_kek.".
 Step 25: The Log should say "ETicket RSA KEK is correct.". If it does not, go back to step 22 and try harder.
 
@@ -34,13 +34,12 @@ Step 27: Click on Load RSA KEK. The log should have two entries. "E-Ticket RSA K
 
 Step 28: Click on Extract Tickets. Log should say "Dumping Tickets" followed shortly by "Done. x Tickets dumped".
 Step 29: Click on Decyrpt NCAs. Log should show a bunch of "Processing --file--.nca - Decrypting, Done. Verifying, Verified.  (May start with Joining, Done).
-Step 30: Click on the Language Tab.
-Step 31: Click on your preferred language, and move it to the top by click on Move Up.  Repeat for 2nd preference.
-Step 32: Click on the Games Tab, then Click on Parse NCAs.  This should finish, and all of your games present on the SD card should be listed, along with any Updates and DLC.
-Step 33: Click on Pack ALL NSPs to pack everything, or select a game, and click on Pack Selected NSP to pack that NSP only.
-Step 34: Close the tool.
-Step 35: Unmount the SYSTEM partition and close hac disk mount.
-Step 36: Unmount the SD card and put it back into your switch.
+Step 30: Click on the Games Tab, then Click on Parse NCAs.  This should finish, and all of your games present on the SD card should be listed, along with any Updates and DLC.
+Step 31: Click on your preferred language, and move it to the top by click on Move Up.  Repeat for each preference, setting them one below the top, etc...
+Step 32: Click on Pack ALL NSPs to pack everything, or select a game, and click on Pack Selected NSP to pack that NSP only.
+Step 33: Close the tool.
+Step 34: Unmount the SYSTEM partition and close hac disk mount.
+Step 35: Unmount the SD card and put it back into your switch.
 
 ----- How to Dump NSPs from new purchases / updates since last dumping. -----
 
