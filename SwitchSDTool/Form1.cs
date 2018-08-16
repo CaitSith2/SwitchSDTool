@@ -1739,11 +1739,15 @@ namespace SwitchSDTool
 
         private void tvGames_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
-
+            tvGames_AfterSelect(null, null);
         }
 
+        private TreeNode _previouslySelectedNode;
         private void tvGames_AfterSelect(object sender, TreeViewEventArgs e)
         {
+            if (_previouslySelectedNode == (tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode)) return;
+            _previouslySelectedNode = tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode;
+
             var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
             var data = result
                 ? nacp.GetTitleNameIcon(tvLanguage)
@@ -1836,6 +1840,11 @@ namespace SwitchSDTool
                     }Base Title ID: {nacp.BaseTitleID}";
             }
 
+        }
+
+        private void tvLanguage_MouseClick(object sender, MouseEventArgs e)
+        {
+            tvLanguage_AfterSelect(null, null);
         }
     }
 }
