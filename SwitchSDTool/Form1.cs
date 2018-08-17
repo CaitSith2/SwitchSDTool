@@ -1921,9 +1921,14 @@ namespace SwitchSDTool
             if(tvGames.SelectedNode?.Parent == null)
                 return string.Empty;
 
+            var titlekey = $@"Title Key: Not Available{Environment.NewLine}";
+            if (_tickets.TryGetValue((string) tvGames.SelectedNode.Tag, out var ticket) && ticket.Anonymize())
+                titlekey = $@"Title Key: {ticket.TitleKey.ToHexString()}{Environment.NewLine}";
+
             var output = $@"{Environment.NewLine}{Environment.NewLine}";
             var cnmt = _cnmtFiles[(string) tvGames.SelectedNode.Tag];
             output += $@"Title ID: {tvGames.SelectedNode.Tag}{Environment.NewLine}";
+            output += titlekey;
             output += $@"Type: {cnmt.Type}{Environment.NewLine}{Environment.NewLine}";
             output += $@"{cnmt.CnmtFileName.Replace(".cnmt", "")} (Meta){Environment.NewLine}";
             foreach (var entry in cnmt.Entries)
