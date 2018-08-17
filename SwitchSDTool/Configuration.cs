@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -26,6 +27,9 @@ namespace SwitchSDTool
         public List<Languages> LanguageOrder = new List<Languages>();
         public GameIconSize GameIconSize = GameIconSize.Small;
         public Size MainFormSize = new Size(932, 595);
+
+        public Dictionary<string, string> RSAKeys =
+            new Dictionary<string, string>();
     }
 
     [SuppressMessage("ReSharper", "UnusedMember.Global")]

@@ -46,11 +46,27 @@ namespace SwitchSDTool
                 return;
             }
 
+            _sdKey = null;
+            btnFindSDKey.Enabled = true;
+
             var split = fbdSDCard.SelectedPath.PathSplit();
             var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents",
                 "registered");
             var baseFolder = Path.Combine(fbdSDCard.SelectedPath, "Nintendo", "Contents", "registered");
-            if (Directory.Exists(rootFolder))
+            var nandRootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar,
+                "Contents", "registered");
+            var nandBaseFolder = Path.Combine(fbdSDCard.SelectedPath, "Contents", "registered");
+            if (Directory.Exists(nandRootFolder))
+            {
+                Configuration.Data.SDpath = nandRootFolder;
+                Configuration.Data.SDPrivateFile = null;
+            }
+            else if (Directory.Exists(nandBaseFolder))
+            {
+                Configuration.Data.SDpath = nandBaseFolder;
+                Configuration.Data.SDPrivateFile = null;
+            }
+            else if (Directory.Exists(rootFolder))
             {
                 Configuration.Data.SDpath = rootFolder;
                 Configuration.Data.SDPrivateFile = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents", "private");
@@ -81,6 +97,16 @@ namespace SwitchSDTool
         private void btnFindSDKey_Click(object sender, EventArgs e)
         {
             if (Configuration.Data.SystemPath == null) return;
+            if (Configuration.Data.SDPrivateFile == null)
+            {
+                if (Directory.Exists(Configuration.Data.SDpath))
+                {
+                    _sdKey = null;
+                    UpdateStatus(@"User NAND Partition mounted");
+                    btnFindSDKey.Enabled = false;
+                }
+                return;
+            }
             var sdkeyfile = Path.Combine(Configuration.Data.SystemPath, "save", "8000000000000043");
             if (!File.Exists(Configuration.Data.SDPrivateFile))
             {
@@ -111,7 +137,6 @@ namespace SwitchSDTool
                     Array.Copy(sdBytes, i + 16, privateBytes, 0, 16);
                     //File.WriteAllBytes("sdkey", privateBytes);
                     _sdKey = privateBytes;
-                    txtSDKey.Text = _sdKey.ToHexString();
                     UpdateStatus(@"SD Key loaded");
                     btnFindSDKey.Enabled = false;
                     return;
@@ -132,6 +157,11 @@ namespace SwitchSDTool
             var result = fbdSDCard.ShowDialog();
             if (result != DialogResult.OK)
                 return;
+
+            cbRSAKey.SelectedIndex = -1;
+
+            btnFindSDKey.Enabled = true;
+            _sdKey = null;
 
             var split = fbdSDCard.SelectedPath.PathSplit();
             var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "save", "8000000000000043");
@@ -228,6 +258,21 @@ namespace SwitchSDTool
                 Ticket.RsaD = d;
                 Ticket.RsaE = be;
 
+                data = new byte[0x18];
+                prodinfo.Seek(0x250, SeekOrigin.Begin);
+                prodinfo.Read(data, 0, 0x18);
+                var serialNumber = Encoding.UTF8.GetString(data);
+                var index = serialNumber.IndexOf("\0", StringComparison.Ordinal);
+                if (index > 0) serialNumber = serialNumber.Substring(0, index);
+
+                if (!cbRSAKey.Items.Contains(serialNumber))
+                {
+                    cbRSAKey.Items.Add(serialNumber);
+                    Configuration.Data.RSAKeys[serialNumber] = $"{rsa_N.ToHexString()},{rsa_D.ToHexString()},{rsa_E.ToHexString()}";
+                }
+
+                cbRSAKey.SelectedItem = serialNumber;
+
                 btnLoadRSAKEK.Enabled = false;
                 UpdateStatus("RSA Key extracted successfully from PRODINFO.bin");
                 Application.DoEvents();
@@ -293,6 +338,12 @@ namespace SwitchSDTool
             SetGameImages(size);
             Size = Configuration.Data.MainFormSize;
 
+            if (Configuration.VerifyETicketRSAKEK())
+            {
+                txtRSAKEK.Text = @"-------- eticket_rsa_kek redacted --------";
+                txtRSAKEK.Enabled = false;
+            }
+
             if (!CheckNetFramework())
             {
                 UpdateStatus("ERROR: Microsoft .NET Framework 4.7.1 or later is required. Please install it.");
@@ -310,6 +361,34 @@ namespace SwitchSDTool
                     _validKeySizes[key + $"{i:00}"] = keysize;
                 }
             }
+
+            var keysToRemove = new List<string>();
+            foreach (var serial in Configuration.Data.RSAKeys.Keys)
+            {
+                var split = Configuration.Data.RSAKeys[serial].Split(',').Where(x => x.Trim().ToByte().Length != 0).Select(x => x.Trim()).ToArray();
+                if (split.Length != 3)
+                {
+                    keysToRemove.Add(serial);
+                    continue;
+                }
+                var N = new BigInteger(split[0].ToByte());
+                var D = new BigInteger(split[1].ToByte());
+                var E = new BigInteger(split[2].ToByte());
+                BigInteger test = 0xCAFEBABE;
+                var encrypted = BigInteger.ModPow(test, D, N);
+                var decrypted = BigInteger.ModPow(encrypted, E, N);
+                if (decrypted != test || E != 0x10001)
+                {
+                    keysToRemove.Add(serial);
+                }
+                else
+                {
+                    cbRSAKey.Items.Add(serial);
+                }
+            }
+
+            foreach (var serial in keysToRemove)
+                Configuration.Data.RSAKeys.Remove(serial);
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -664,7 +743,7 @@ namespace SwitchSDTool
                 btnFindSDKey_Click(null, null);
                 if (_sdKey == null)
                 {
-                    UpdateStatus("Cannot Decrypt NCAs from SD card without a valid SD Key");
+                    UpdateStatus("Cannot Decrypt NCAs from SD card without a valid SD Key. Assuming USER Nand with decrypted files is mounted instead.");
                 }
             }
 
@@ -710,11 +789,14 @@ namespace SwitchSDTool
                 }
 
                 var file = ncaFileParts[0];
+                string nax0file = null;
 
-                if (ncaFileParts.Count > 1)
+                if (ncaFileParts.Count > (_sdKey == null ? 0 : 1))
                 {
-                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Joining");
-                    file = $@"{Path.Combine(Configuration.Data.Decryptionpath, Path.GetFileName(nca))}.nax0";
+                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Joining{(_sdKey == null ? "/Verifying" : "")}");
+                    file = $@"{Path.Combine(Configuration.Data.Decryptionpath, Path.GetFileName(nca))}{(_sdKey != null ? ".nax0" : "")}";
+                    nax0file = file;
+                    var hash = SHA256.Create();
 
                     InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                     try
@@ -733,9 +815,12 @@ namespace SwitchSDTool
 
                                         sw.Write(bytes);
                                         UpdateProgress((ulong) bytes.LongLength);
+                                        hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
                                     } while (bytes.Length > 0);
                                 }
                             }
+
+                            hash.TransformFinalBlock(new byte[0], 0, 0);
                         }
                     }
                     catch (Exception ex)
@@ -744,7 +829,7 @@ namespace SwitchSDTool
                             $@"Failed to Join ""{Path.GetFileName(nca)}"" due to an exception:{Environment.NewLine}{ex.Message}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                         try
                         {
-                            if (File.Exists(file) && file.EndsWith(".nax0"))
+                            if (File.Exists(nax0file))
                                 File.Delete(file);
                         }
                         catch
@@ -755,7 +840,25 @@ namespace SwitchSDTool
                         continue;
                     }
 
-                    AppendStatus(", Done. Decrypting");
+                    if (_sdKey == null)
+                    {
+                        var result = nca.ToLowerInvariant().Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
+
+                        if (!result)
+                        {
+                            AppendStatus($", Failed. NCA File {Path.GetFileName(nca)} is either corrupted or encrypted.");
+                            if (File.Exists(nax0file))
+                                File.Delete(nax0file);
+                        }
+                        else
+                        {
+                            AppendStatus(", Done.");
+                        }
+
+                        continue;
+                    }
+
+                    AppendStatus($", Done. Decrypting");
 
                 }
                 else
@@ -770,23 +873,23 @@ namespace SwitchSDTool
                         }"" --plaintext=""{ncafile}"" ""{file}""";
                 StartProcess(p, ncafile);
 
-                if (File.Exists(file) && file.EndsWith(".nax0"))
-                    File.Delete(file);
+                if (nax0file != null && File.Exists(nax0file))
+                    File.Delete(nax0file);
 
                 if (_message.Contains("Error: NAX0 key derivation failed."))
                 {
-                    AppendStatus(", Failed: Bad SD Key");
+                    AppendStatus(", Failed: File is corrupted or wrong SD Key is loaded.");
 
                     if (File.Exists(ncafile))
                         File.Delete(ncafile);
-                    _sdKey = null;
+
                     btnFindSDKey.Enabled = true;
-                    break;
+                    continue;
                 }
 
                 if (p.ExitCode != 0)
                 {
-                    AppendStatus(", Failed: Check Message log above to see why.",
+                    AppendStatus(", Failed: Click me and Check Message log above to see why.",
                         $@"hactool {p.StartInfo.Arguments}{Environment.NewLine}Standard Output: {_message}{
                                 Environment.NewLine
                             }Error Output: {_error}{Environment.NewLine}{Environment.NewLine}");
@@ -1849,6 +1952,37 @@ namespace SwitchSDTool
         private void tvLanguage_MouseClick(object sender, MouseEventArgs e)
         {
             tvLanguage_AfterSelect(null, null);
+        }
+
+        private void cbRSAKey_TextChanged(object sender, EventArgs e)
+        {
+            if (Configuration.Data.RSAKeys.TryGetValue(cbRSAKey.Text.ToUpperInvariant(), out _))
+            {
+                cbRSAKey.SelectedItem = cbRSAKey.Text.ToUpperInvariant();
+                cbRSAKey_SelectedIndexChanged(sender, e);
+            }
+        }
+
+        private void cbRSAKey_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var item = cbRSAKey.SelectedItem;
+            if (item is string serialNumber && Configuration.Data.RSAKeys.TryGetValue(serialNumber, out var keys))
+            {
+                var split = keys.Split(',');
+                if (split.Length == 3 && split.All(x => x.ToByte().Length != 0))
+                {
+                    Ticket.RsaN = new BigInteger(split[0].ToByte());
+                    Ticket.RsaD = new BigInteger(split[1].ToByte());
+                    Ticket.RsaE = new BigInteger(split[2].ToByte());
+                    btnLoadRSAKEK.Enabled = false;
+                    return;
+                }
+            }
+
+            Ticket.RsaN = BigInteger.Zero;
+            Ticket.RsaD = BigInteger.Zero;
+            Ticket.RsaE = BigInteger.Zero;
+            btnLoadRSAKEK.Enabled = true;
         }
     }
 }
