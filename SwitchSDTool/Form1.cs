@@ -788,20 +788,15 @@ namespace SwitchSDTool
                     continue;
                 }
 
-                var file = ncaFileParts[0];
-                string nax0file = null;
-
-                if (ncaFileParts.Count > (_sdKey == null ? 0 : 1))
+                if (_sdKey == null)
                 {
-                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Joining{(_sdKey == null ? "/Verifying" : "")}");
-                    file = $@"{Path.Combine(Configuration.Data.Decryptionpath, Path.GetFileName(nca))}{(_sdKey != null ? ".nax0" : "")}";
-                    nax0file = file;
+                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Verifying");
                     var hash = SHA256.Create();
 
                     InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                     try
                     {
-                        using (var sw = new BinaryWriter(new FileStream(file, FileMode.Create)))
+                        using (var sw = new BinaryWriter(new FileStream(ncafile, FileMode.Create)))
                         {
                             foreach (var part in ncaFileParts)
                             {
@@ -826,11 +821,13 @@ namespace SwitchSDTool
                     catch (Exception ex)
                     {
                         AppendStatus(", Failed. Check message box above to see why.",
-                            $@"Failed to Join ""{Path.GetFileName(nca)}"" due to an exception:{Environment.NewLine}{ex.Message}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
+                            $@"Failed to Verify ""{Path.GetFileName(nca)}"" due to an exception:{Environment.NewLine}{
+                                    ex.Message
+                                }{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                         try
                         {
-                            if (File.Exists(nax0file))
-                                File.Delete(file);
+                            if (File.Exists(ncafile))
+                                File.Delete(ncafile);
                         }
                         catch
                         {
@@ -840,41 +837,31 @@ namespace SwitchSDTool
                         continue;
                     }
 
-                    if (_sdKey == null)
+
+                    var result = nca.ToLowerInvariant()
+                        .Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
+
+                    if (!result)
                     {
-                        var result = nca.ToLowerInvariant().Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
-
-                        if (!result)
-                        {
-                            AppendStatus($", Failed. NCA File {Path.GetFileName(nca)} is either corrupted or encrypted.");
-                            if (File.Exists(nax0file))
-                                File.Delete(nax0file);
-                        }
-                        else
-                        {
-                            AppendStatus(", Done.");
-                        }
-
-                        continue;
+                        AppendStatus($", Failed. NCA File {Path.GetFileName(nca)} is either corrupted or encrypted.");
+                        if (File.Exists(ncafile))
+                            File.Delete(ncafile);
+                    }
+                    else
+                    {
+                        AppendStatus(", Done.");
                     }
 
-                    AppendStatus($", Done. Decrypting");
-
-                }
-                else
-                {
-                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
+                    continue;
                 }
 
+                UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
                 InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                 p.StartInfo.Arguments =
                     $@"{FixedKeysArgument}-t nax0 --sdseed={_sdKey.ToHexString()} --sdpath=""/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{
                             Path.GetFileName(nca)
-                        }"" --plaintext=""{ncafile}"" ""{file}""";
+                        }"" --plaintext=""{ncafile}"" ""{nca}""";
                 StartProcess(p, ncafile);
-
-                if (nax0file != null && File.Exists(nax0file))
-                    File.Delete(nax0file);
 
                 if (_message.Contains("Error: NAX0 key derivation failed."))
                 {
