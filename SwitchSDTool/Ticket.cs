@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Security.Cryptography;
@@ -58,12 +59,15 @@ namespace SwitchSDTool
              "78AB1907B3BA1B7D0001000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").ToByte();
 
 
+        public static Dictionary<string, string> TitleKeyDatabase = new Dictionary<string, string>();
+
 
 
         public byte[] Data;
         public byte[] TitleKey => Data.Skip(0x180).Take(16).ToArray();
         public byte[] TitleID => Data.Skip(0x2A0).Take(8).ToArray();
         public byte[] RightsID => Data.Skip(0x2A0).Take(16).ToArray();
+        public readonly bool Common;
         public string AnonymizeError = null;
 
         private byte[] sxor(byte[] a, byte[] b)
@@ -92,6 +96,29 @@ namespace SwitchSDTool
         {
             if(data == null || data.Length < 0x2C0) throw new Exception("Bad data");
             Data = data;
+
+            var titlekey = new List<byte>() { 0 };
+            titlekey.AddRange(Data.Skip(0x180).Take(0x100));
+            Common = Enumerable.Range(0x10, 0xF0).All(x => titlekey[x + 1] == 0);
+        }
+
+        public Ticket(string rightsID, string titleKey)
+        {
+            var rightsIDBytes = rightsID.ToByte();
+            var titleKeyBytes = titleKey.ToByte();
+
+            if(rightsIDBytes.Length != 16) throw new InvalidDataException("Rights ID must by 32 hex characters long");
+            if(titleKeyBytes.Length != 16) throw new InvalidDataException("tilekey must be 32 hex characters long");
+
+            var pticket = new List<byte>(CommonData);
+            pticket.InsertRange(0x180, titleKeyBytes);
+            pticket.InsertRange(0x283, rightsIDBytes.Skip(12).Take(4));
+            pticket.InsertRange(0x2A0, rightsIDBytes);
+            Data = pticket.ToArray();
+
+            if (Data.Length != 0x2C0) throw new Exception("Could not create a ticket with the supplied rightsID and titlekey");
+            TitleKeyDatabase[rightsID] = titleKey;
+            Common = true;
         }
 
         public bool Anonymize()
@@ -101,7 +128,9 @@ namespace SwitchSDTool
             titlekey.AddRange(Data.Skip(0x180).Take(0x100));
 
             if (Enumerable.Range(0x10, 0xF0).All(x => titlekey[x + 1] == 0))
+            {
                 return true;
+            }
 
             if (RsaE != 0x10001)
             {
@@ -142,6 +171,7 @@ namespace SwitchSDTool
                 pticket.InsertRange(0x283, Data.Skip(0x2AC).Take(4));
                 pticket.InsertRange(0x2A0, Data.Skip(0x2A0).Take(16));
                 Data = pticket.ToArray();
+                TitleKeyDatabase[RightsID.ToHexString()] = TitleKey.ToHexString();
                 return true;
             }
 

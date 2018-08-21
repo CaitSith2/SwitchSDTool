@@ -1,0 +1,40 @@
+Version 1.07 - Aug 19, 2018
+	- Include history.txt
+	- release zip now uniquely named
+	- Added ability to retrieve Title keys from DB (Have to find the DB url yourself)
+	- Added an option to dump personal_keys.txt
+
+Version 1.06 - Aug 17, 2018
+	- Joining/Decrypting now merged into one step.
+	- Title key now shown, if available.
+
+Version 1.05 - Aug 17, 2018
+	- Dumping from USER nand partition now possible. Just select the USER nand partition as your SD directory to do so.
+	- Added a combo box and a means to cache RSA keys by Switch Serial number. This means PRODINFO.bin is only needed once, to initially load the RSA key.
+	- Selecting SD Directory now Enables Find SD key.
+	- Selecting SYSTEM nand directory now Enables both Find SD Key, and Load RSA Key. (Also deselects the current switch serial number from the combo box as well.)
+	- eticket_rsa_kek text box disabled on program startup, if the correct key already exists in the configuration at startup.
+
+Version 1.04 - Aug 16, 2018
+	- Fixed a bug that causes duplicate entries to appear
+	- The Info box now contains info on what NCA files belong to the title, when a child node of the title is selected, resolving issue #2
+
+Version 1.03 - Aug 16, 2018
+	- keys.txt no longer moved to %userprofile%.switch\prod.keys
+	- keys.txt if present, or %userprofile%.switch\prod.keys parsed locally, and invalid key length keys for hactool are removed and put into tools\FixedKeys.txt. This should fix some of the problems for good.
+	- Games/Language selection combined into one tab.
+	- Selection of a game now shows on the language list which languages are supported.
+	- Clicking on a language while a game is selected now shows that languages icon and title/developer information.
+
+Version 1.02 - Aug 15, 2018
+	- Fixed a bug where an empty directory in the SD card causes the decryption process to outright stop.
+	- Fixed an issue where if the only items you have is DLC from a given game, you end up with lots of "Unknown". It is now one "Unknown" per game which you only have DLC for.
+	- Added option to delete data from only the SD card, and keep the local decrypted NCA intact. (This is equivalent to Archiving the content on the switch.)
+	- No longer need to re-parse the NCAs if you change the language order after parsing NCAs. The titles/icons now update according to the new language order live.
+
+Version 1.01 - Aug 13, 2018
+	- Added MIT License
+	- Show error message if .NET Framework is less than 4.7.1.
+
+Version 1.00 - Aug 13, 2018
+	- Initial Release :)

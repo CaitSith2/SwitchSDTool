@@ -38,21 +38,21 @@ namespace SwitchSDTool
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.TreeNode treeNode16 = new System.Windows.Forms.TreeNode("American English");
-            System.Windows.Forms.TreeNode treeNode17 = new System.Windows.Forms.TreeNode("British English");
-            System.Windows.Forms.TreeNode treeNode18 = new System.Windows.Forms.TreeNode("Japanese");
-            System.Windows.Forms.TreeNode treeNode19 = new System.Windows.Forms.TreeNode("French");
-            System.Windows.Forms.TreeNode treeNode20 = new System.Windows.Forms.TreeNode("German");
-            System.Windows.Forms.TreeNode treeNode21 = new System.Windows.Forms.TreeNode("Latin American Spanish");
-            System.Windows.Forms.TreeNode treeNode22 = new System.Windows.Forms.TreeNode("Spanish");
-            System.Windows.Forms.TreeNode treeNode23 = new System.Windows.Forms.TreeNode("Italian");
-            System.Windows.Forms.TreeNode treeNode24 = new System.Windows.Forms.TreeNode("Dutch");
-            System.Windows.Forms.TreeNode treeNode25 = new System.Windows.Forms.TreeNode("Canadian French");
-            System.Windows.Forms.TreeNode treeNode26 = new System.Windows.Forms.TreeNode("Portuguese");
-            System.Windows.Forms.TreeNode treeNode27 = new System.Windows.Forms.TreeNode("Russian");
-            System.Windows.Forms.TreeNode treeNode28 = new System.Windows.Forms.TreeNode("Korean");
-            System.Windows.Forms.TreeNode treeNode29 = new System.Windows.Forms.TreeNode("Taiwanese");
-            System.Windows.Forms.TreeNode treeNode30 = new System.Windows.Forms.TreeNode("Chinese");
+            System.Windows.Forms.TreeNode treeNode1 = new System.Windows.Forms.TreeNode("American English");
+            System.Windows.Forms.TreeNode treeNode2 = new System.Windows.Forms.TreeNode("British English");
+            System.Windows.Forms.TreeNode treeNode3 = new System.Windows.Forms.TreeNode("Japanese");
+            System.Windows.Forms.TreeNode treeNode4 = new System.Windows.Forms.TreeNode("French");
+            System.Windows.Forms.TreeNode treeNode5 = new System.Windows.Forms.TreeNode("German");
+            System.Windows.Forms.TreeNode treeNode6 = new System.Windows.Forms.TreeNode("Latin American Spanish");
+            System.Windows.Forms.TreeNode treeNode7 = new System.Windows.Forms.TreeNode("Spanish");
+            System.Windows.Forms.TreeNode treeNode8 = new System.Windows.Forms.TreeNode("Italian");
+            System.Windows.Forms.TreeNode treeNode9 = new System.Windows.Forms.TreeNode("Dutch");
+            System.Windows.Forms.TreeNode treeNode10 = new System.Windows.Forms.TreeNode("Canadian French");
+            System.Windows.Forms.TreeNode treeNode11 = new System.Windows.Forms.TreeNode("Portuguese");
+            System.Windows.Forms.TreeNode treeNode12 = new System.Windows.Forms.TreeNode("Russian");
+            System.Windows.Forms.TreeNode treeNode13 = new System.Windows.Forms.TreeNode("Korean");
+            System.Windows.Forms.TreeNode treeNode14 = new System.Windows.Forms.TreeNode("Taiwanese");
+            System.Windows.Forms.TreeNode treeNode15 = new System.Windows.Forms.TreeNode("Chinese");
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.btnPackNSP = new System.Windows.Forms.Button();
             this.btnDecryptNCA = new System.Windows.Forms.Button();
@@ -102,6 +102,10 @@ namespace SwitchSDTool
             this.scGameIconInfo = new System.Windows.Forms.SplitContainer();
             this.txtGameInfo = new System.Windows.Forms.TextBox();
             this.cbRSAKey = new System.Windows.Forms.ComboBox();
+            this.label1 = new System.Windows.Forms.Label();
+            this.txtTitleKeyURL = new System.Windows.Forms.TextBox();
+            this.btnGetTitleKeyDB = new System.Windows.Forms.Button();
+            this.btnGetTitleKeys = new System.Windows.Forms.Button();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -128,7 +132,7 @@ namespace SwitchSDTool
             // 
             // btnPackNSP
             // 
-            this.btnPackNSP.Location = new System.Drawing.Point(366, 112);
+            this.btnPackNSP.Location = new System.Drawing.Point(366, 129);
             this.btnPackNSP.Name = "btnPackNSP";
             this.btnPackNSP.Size = new System.Drawing.Size(115, 31);
             this.btnPackNSP.TabIndex = 11;
@@ -138,7 +142,7 @@ namespace SwitchSDTool
             // 
             // btnDecryptNCA
             // 
-            this.btnDecryptNCA.Location = new System.Drawing.Point(124, 112);
+            this.btnDecryptNCA.Location = new System.Drawing.Point(124, 129);
             this.btnDecryptNCA.Name = "btnDecryptNCA";
             this.btnDecryptNCA.Size = new System.Drawing.Size(115, 31);
             this.btnDecryptNCA.TabIndex = 10;
@@ -148,7 +152,7 @@ namespace SwitchSDTool
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(3, 112);
+            this.button1.Location = new System.Drawing.Point(3, 129);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(115, 31);
             this.button1.TabIndex = 9;
@@ -293,7 +297,7 @@ namespace SwitchSDTool
             // 
             this.splitContainer1.Panel2.Controls.Add(this.tcTabs);
             this.splitContainer1.Size = new System.Drawing.Size(1041, 534);
-            this.splitContainer1.SplitterDistance = 192;
+            this.splitContainer1.SplitterDistance = 200;
             this.splitContainer1.TabIndex = 14;
             // 
             // splitContainerTop
@@ -305,6 +309,10 @@ namespace SwitchSDTool
             // 
             // splitContainerTop.Panel1
             // 
+            this.splitContainerTop.Panel1.Controls.Add(this.btnGetTitleKeys);
+            this.splitContainerTop.Panel1.Controls.Add(this.btnGetTitleKeyDB);
+            this.splitContainerTop.Panel1.Controls.Add(this.txtTitleKeyURL);
+            this.splitContainerTop.Panel1.Controls.Add(this.label1);
             this.splitContainerTop.Panel1.Controls.Add(this.cbRSAKey);
             this.splitContainerTop.Panel1.Controls.Add(this.btnParseNCA);
             this.splitContainerTop.Panel1.Controls.Add(this.btnSelectSD);
@@ -323,13 +331,13 @@ namespace SwitchSDTool
             // 
             this.splitContainerTop.Panel2.Controls.Add(this.scGameIconInfo);
             this.splitContainerTop.Panel2.Controls.Add(this.txtMessage);
-            this.splitContainerTop.Size = new System.Drawing.Size(1041, 192);
+            this.splitContainerTop.Size = new System.Drawing.Size(1041, 200);
             this.splitContainerTop.SplitterDistance = 549;
             this.splitContainerTop.TabIndex = 14;
             // 
             // btnParseNCA
             // 
-            this.btnParseNCA.Location = new System.Drawing.Point(245, 112);
+            this.btnParseNCA.Location = new System.Drawing.Point(245, 129);
             this.btnParseNCA.Name = "btnParseNCA";
             this.btnParseNCA.Size = new System.Drawing.Size(115, 31);
             this.btnParseNCA.TabIndex = 13;
@@ -344,7 +352,7 @@ namespace SwitchSDTool
             this.pbGameIcon.InitialImage = global::SwitchSDTool.Properties.Resources.Ultra_microSDXC_UHS_I_A1_front;
             this.pbGameIcon.Location = new System.Drawing.Point(0, 0);
             this.pbGameIcon.Name = "pbGameIcon";
-            this.pbGameIcon.Size = new System.Drawing.Size(244, 192);
+            this.pbGameIcon.Size = new System.Drawing.Size(244, 200);
             this.pbGameIcon.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.pbGameIcon.TabIndex = 14;
             this.pbGameIcon.TabStop = false;
@@ -357,7 +365,7 @@ namespace SwitchSDTool
             this.txtMessage.Name = "txtMessage";
             this.txtMessage.ReadOnly = true;
             this.txtMessage.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtMessage.Size = new System.Drawing.Size(488, 192);
+            this.txtMessage.Size = new System.Drawing.Size(488, 200);
             this.txtMessage.TabIndex = 13;
             this.txtMessage.Visible = false;
             // 
@@ -369,7 +377,7 @@ namespace SwitchSDTool
             this.tcTabs.Location = new System.Drawing.Point(0, 0);
             this.tcTabs.Name = "tcTabs";
             this.tcTabs.SelectedIndex = 0;
-            this.tcTabs.Size = new System.Drawing.Size(1041, 338);
+            this.tcTabs.Size = new System.Drawing.Size(1041, 330);
             this.tcTabs.TabIndex = 0;
             this.tcTabs.Selected += new System.Windows.Forms.TabControlEventHandler(this.tcTabs_Selected);
             // 
@@ -390,7 +398,7 @@ namespace SwitchSDTool
             this.tpGames.Location = new System.Drawing.Point(4, 22);
             this.tpGames.Name = "tpGames";
             this.tpGames.Padding = new System.Windows.Forms.Padding(3);
-            this.tpGames.Size = new System.Drawing.Size(1033, 312);
+            this.tpGames.Size = new System.Drawing.Size(1033, 304);
             this.tpGames.TabIndex = 1;
             this.tpGames.Text = "Games";
             this.tpGames.UseVisualStyleBackColor = true;
@@ -414,7 +422,7 @@ namespace SwitchSDTool
             // 
             this.scGames.Panel2.Controls.Add(this.panelLanguage);
             this.scGames.Panel2.Controls.Add(this.tvGames);
-            this.scGames.Size = new System.Drawing.Size(1027, 306);
+            this.scGames.Size = new System.Drawing.Size(1027, 298);
             this.scGames.SplitterDistance = 125;
             this.scGames.TabIndex = 1;
             // 
@@ -477,7 +485,7 @@ namespace SwitchSDTool
             this.tvGames.Location = new System.Drawing.Point(0, 0);
             this.tvGames.Name = "tvGames";
             this.tvGames.SelectedImageIndex = 0;
-            this.tvGames.Size = new System.Drawing.Size(898, 306);
+            this.tvGames.Size = new System.Drawing.Size(898, 298);
             this.tvGames.TabIndex = 0;
             this.tvGames.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvGames_AfterSelect);
             this.tvGames.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvGames_NodeMouseClick);
@@ -493,7 +501,7 @@ namespace SwitchSDTool
             // btnLanguageDown
             // 
             this.btnLanguageDown.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.btnLanguageDown.Location = new System.Drawing.Point(0, 280);
+            this.btnLanguageDown.Location = new System.Drawing.Point(0, 272);
             this.btnLanguageDown.Name = "btnLanguageDown";
             this.btnLanguageDown.Size = new System.Drawing.Size(165, 26);
             this.btnLanguageDown.TabIndex = 2;
@@ -520,69 +528,69 @@ namespace SwitchSDTool
             this.tvLanguage.ImageList = this.ilLanguage;
             this.tvLanguage.Location = new System.Drawing.Point(0, 26);
             this.tvLanguage.Name = "tvLanguage";
-            treeNode16.Name = "nodeAmericanEnglish";
-            treeNode16.Tag = "0";
-            treeNode16.Text = "American English";
-            treeNode17.Name = "nodeBritishEnglish";
-            treeNode17.Tag = "1";
-            treeNode17.Text = "British English";
-            treeNode18.Name = "nodeJapanese";
-            treeNode18.Tag = "2";
-            treeNode18.Text = "Japanese";
-            treeNode19.Name = "nodeFrench";
-            treeNode19.Tag = "3";
-            treeNode19.Text = "French";
-            treeNode20.Name = "nodeGerman";
-            treeNode20.Tag = "4";
-            treeNode20.Text = "German";
-            treeNode21.Name = "nodeLatinAmericanSpanish";
-            treeNode21.Tag = "5";
-            treeNode21.Text = "Latin American Spanish";
-            treeNode22.Name = "nodeSpanish";
-            treeNode22.Tag = "6";
-            treeNode22.Text = "Spanish";
-            treeNode23.Name = "nodeItalian";
-            treeNode23.Tag = "7";
-            treeNode23.Text = "Italian";
-            treeNode24.Name = "nodeDutch";
-            treeNode24.Tag = "8";
-            treeNode24.Text = "Dutch";
-            treeNode25.Name = "nodeCanadianFrench";
-            treeNode25.Tag = "9";
-            treeNode25.Text = "Canadian French";
-            treeNode26.Name = "nodePortuguese";
-            treeNode26.Tag = "10";
-            treeNode26.Text = "Portuguese";
-            treeNode27.Name = "nodeRussian";
-            treeNode27.Tag = "11";
-            treeNode27.Text = "Russian";
-            treeNode28.Name = "nodeKorean";
-            treeNode28.Tag = "12";
-            treeNode28.Text = "Korean";
-            treeNode29.Name = "nodeTaiwanese";
-            treeNode29.Tag = "13";
-            treeNode29.Text = "Taiwanese";
-            treeNode30.Name = "nodeChinese";
-            treeNode30.Tag = "14";
-            treeNode30.Text = "Chinese";
+            treeNode1.Name = "nodeAmericanEnglish";
+            treeNode1.Tag = "0";
+            treeNode1.Text = "American English";
+            treeNode2.Name = "nodeBritishEnglish";
+            treeNode2.Tag = "1";
+            treeNode2.Text = "British English";
+            treeNode3.Name = "nodeJapanese";
+            treeNode3.Tag = "2";
+            treeNode3.Text = "Japanese";
+            treeNode4.Name = "nodeFrench";
+            treeNode4.Tag = "3";
+            treeNode4.Text = "French";
+            treeNode5.Name = "nodeGerman";
+            treeNode5.Tag = "4";
+            treeNode5.Text = "German";
+            treeNode6.Name = "nodeLatinAmericanSpanish";
+            treeNode6.Tag = "5";
+            treeNode6.Text = "Latin American Spanish";
+            treeNode7.Name = "nodeSpanish";
+            treeNode7.Tag = "6";
+            treeNode7.Text = "Spanish";
+            treeNode8.Name = "nodeItalian";
+            treeNode8.Tag = "7";
+            treeNode8.Text = "Italian";
+            treeNode9.Name = "nodeDutch";
+            treeNode9.Tag = "8";
+            treeNode9.Text = "Dutch";
+            treeNode10.Name = "nodeCanadianFrench";
+            treeNode10.Tag = "9";
+            treeNode10.Text = "Canadian French";
+            treeNode11.Name = "nodePortuguese";
+            treeNode11.Tag = "10";
+            treeNode11.Text = "Portuguese";
+            treeNode12.Name = "nodeRussian";
+            treeNode12.Tag = "11";
+            treeNode12.Text = "Russian";
+            treeNode13.Name = "nodeKorean";
+            treeNode13.Tag = "12";
+            treeNode13.Text = "Korean";
+            treeNode14.Name = "nodeTaiwanese";
+            treeNode14.Tag = "13";
+            treeNode14.Text = "Taiwanese";
+            treeNode15.Name = "nodeChinese";
+            treeNode15.Tag = "14";
+            treeNode15.Text = "Chinese";
             this.tvLanguage.Nodes.AddRange(new System.Windows.Forms.TreeNode[] {
-            treeNode16,
-            treeNode17,
-            treeNode18,
-            treeNode19,
-            treeNode20,
-            treeNode21,
-            treeNode22,
-            treeNode23,
-            treeNode24,
-            treeNode25,
-            treeNode26,
-            treeNode27,
-            treeNode28,
-            treeNode29,
-            treeNode30});
+            treeNode1,
+            treeNode2,
+            treeNode3,
+            treeNode4,
+            treeNode5,
+            treeNode6,
+            treeNode7,
+            treeNode8,
+            treeNode9,
+            treeNode10,
+            treeNode11,
+            treeNode12,
+            treeNode13,
+            treeNode14,
+            treeNode15});
             this.tvLanguage.SelectedImageIndex = 0;
-            this.tvLanguage.Size = new System.Drawing.Size(165, 254);
+            this.tvLanguage.Size = new System.Drawing.Size(165, 246);
             this.tvLanguage.TabIndex = 0;
             this.tvLanguage.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.tvLanguage_AfterSelect);
             this.tvLanguage.MouseClick += new System.Windows.Forms.MouseEventHandler(this.tvLanguage_MouseClick);
@@ -625,7 +633,7 @@ namespace SwitchSDTool
             this.panelLanguage.Dock = System.Windows.Forms.DockStyle.Right;
             this.panelLanguage.Location = new System.Drawing.Point(733, 0);
             this.panelLanguage.Name = "panelLanguage";
-            this.panelLanguage.Size = new System.Drawing.Size(165, 306);
+            this.panelLanguage.Size = new System.Drawing.Size(165, 298);
             this.panelLanguage.TabIndex = 0;
             // 
             // ilLanguage
@@ -648,7 +656,7 @@ namespace SwitchSDTool
             // scGameIconInfo.Panel2
             // 
             this.scGameIconInfo.Panel2.Controls.Add(this.txtGameInfo);
-            this.scGameIconInfo.Size = new System.Drawing.Size(488, 192);
+            this.scGameIconInfo.Size = new System.Drawing.Size(488, 200);
             this.scGameIconInfo.SplitterDistance = 244;
             this.scGameIconInfo.TabIndex = 14;
             // 
@@ -659,7 +667,7 @@ namespace SwitchSDTool
             this.txtGameInfo.Multiline = true;
             this.txtGameInfo.Name = "txtGameInfo";
             this.txtGameInfo.ReadOnly = true;
-            this.txtGameInfo.Size = new System.Drawing.Size(240, 192);
+            this.txtGameInfo.Size = new System.Drawing.Size(240, 200);
             this.txtGameInfo.TabIndex = 0;
             // 
             // cbRSAKey
@@ -675,6 +683,43 @@ namespace SwitchSDTool
             this.cbRSAKey.Text = "----- Select Serial Number -----";
             this.cbRSAKey.SelectedIndexChanged += new System.EventHandler(this.cbRSAKey_SelectedIndexChanged);
             this.cbRSAKey.TextChanged += new System.EventHandler(this.cbRSAKey_TextChanged);
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(8, 106);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(125, 13);
+            this.label1.TabIndex = 15;
+            this.label1.Text = "Title Key Database URL:";
+            // 
+            // txtTitleKeyURL
+            // 
+            this.txtTitleKeyURL.Location = new System.Drawing.Point(139, 103);
+            this.txtTitleKeyURL.Name = "txtTitleKeyURL";
+            this.txtTitleKeyURL.Size = new System.Drawing.Size(217, 20);
+            this.txtTitleKeyURL.TabIndex = 16;
+            this.txtTitleKeyURL.TextChanged += new System.EventHandler(this.txtTitleKeyURL_TextChanged);
+            // 
+            // btnGetTitleKeyDB
+            // 
+            this.btnGetTitleKeyDB.Location = new System.Drawing.Point(362, 103);
+            this.btnGetTitleKeyDB.Name = "btnGetTitleKeyDB";
+            this.btnGetTitleKeyDB.Size = new System.Drawing.Size(119, 20);
+            this.btnGetTitleKeyDB.TabIndex = 17;
+            this.btnGetTitleKeyDB.Text = "Get Title Key DB";
+            this.btnGetTitleKeyDB.UseVisualStyleBackColor = true;
+            this.btnGetTitleKeyDB.Click += new System.EventHandler(this.btnGetTitleKeys_Click);
+            // 
+            // btnGetTitleKeys
+            // 
+            this.btnGetTitleKeys.Location = new System.Drawing.Point(3, 166);
+            this.btnGetTitleKeys.Name = "btnGetTitleKeys";
+            this.btnGetTitleKeys.Size = new System.Drawing.Size(141, 31);
+            this.btnGetTitleKeys.TabIndex = 18;
+            this.btnGetTitleKeys.Text = "Extract Personal_keys.txt";
+            this.btnGetTitleKeys.UseVisualStyleBackColor = true;
+            this.btnGetTitleKeys.Click += new System.EventHandler(this.btnGetTitleKeys_Click_1);
             // 
             // Form1
             // 
@@ -770,6 +815,10 @@ namespace SwitchSDTool
         private SplitContainer scGameIconInfo;
         private TextBox txtGameInfo;
         private ComboBox cbRSAKey;
+        private TextBox txtTitleKeyURL;
+        private Label label1;
+        private Button btnGetTitleKeyDB;
+        private Button btnGetTitleKeys;
     }
 }
 

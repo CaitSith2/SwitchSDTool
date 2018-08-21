@@ -134,6 +134,9 @@
     <None Include="App.coonfig" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="history.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="license.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
