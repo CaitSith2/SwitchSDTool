@@ -2082,37 +2082,36 @@ namespace SwitchSDTool
                 if (myHttpWebResponse.StatusCode == HttpStatusCode.OK)
                 {
                     var stream = myHttpWebResponse.GetResponseStream();
-                    if (stream == null) return;
-                    var lines = new List<string>();
+                    if (stream == null)
+                    {
+                        HideProgress();
+                        return;
+                    }
                     using (var sr = new StreamReader(stream))
                     {
                         while (!sr.EndOfStream)
                         {
-                            lines.Add(sr.ReadLine());
+                            var line = sr.ReadLine();
+                            if (line == null) continue;
 
+                            var split = line.Split('|');
+                            if (split.Length < 3 || split[0].ToByte().Length != 16 || split[1].ToByte().Length != 16)
+                                continue;
+                            split[2] = string.Join("|", split.Skip(2));
+
+                            var typeBytes = split[0].Substring(12, 4).ToByte();
+                            typeBytes[0] &= 0x1F;
+                            if (typeBytes[0] == 0x08 && typeBytes[1] == 0x00)
+                                continue;   //Do NOT ADD update title keys to the ticket list. the resulting tickets won't be signed,
+                                            //and therefore will not work on ALL unmodified switch consoles.
+
+                            if (!_personalTitleIDs.Add(split[0].Substring(0, 16).ToLowerInvariant()) &&
+                                !_databaseTitleNames.ContainsKey(split[0].Substring(0, 16).ToLowerInvariant()))
+                                _ticketsNotInDB--;
+
+                            _tickets[split[0].Substring(0, 16).ToLowerInvariant()] = new Ticket(split[0], split[1]);
+                            _databaseTitleNames[split[0].Substring(0, 16).ToLowerInvariant()] = split[2];
                         }
-                    }
-
-                    InitializeProgress((ulong) lines.Count, true);
-                    foreach (var line in lines)
-                    {
-                        UpdateProgress(1);
-                        var split = line?.Split('|') ?? new string[0];
-                        if (split.Length < 3 || split[0].ToByte().Length != 16 || split[1].ToByte().Length != 16)
-                            continue;
-                        split[2] = string.Join("|", split.Skip(2));
-                        var typeBytes = split[0].Substring(12, 4).ToByte();
-                        typeBytes[0] &= 0x1F;
-                        if (typeBytes[0] == 0x08 && typeBytes[1] == 0x00)
-                            continue; //Do NOT ADD update title keys to the ticket list. the resulting tickets won't be signed,
-                        //and therefore will not work on ALL unmodified switch consoles.
-
-                        if (!_personalTitleIDs.Add(split[0].Substring(0, 16).ToLowerInvariant()) &&
-                            !_databaseTitleNames.ContainsKey(split[0].Substring(0, 16).ToLowerInvariant()))
-                            _ticketsNotInDB--;
-
-                        _tickets[split[0].Substring(0, 16).ToLowerInvariant()] = new Ticket(split[0], split[1]);
-                        _databaseTitleNames[split[0].Substring(0, 16).ToLowerInvariant()] = split[2];
                     }
                 }
 
