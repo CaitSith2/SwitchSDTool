@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
@@ -21,9 +22,14 @@ namespace SwitchSDTool
         private byte[] _sdKey;
 
         private readonly Dictionary<string, Ticket> _tickets = new Dictionary<string, Ticket>();
+        private readonly Dictionary<string, Ticket> _personalTickets = new Dictionary<string, Ticket>();
         private readonly Dictionary<string, CNMT> _cnmtFiles = new Dictionary<string, CNMT>();
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _databaseTitleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
+
+        private int _ticketsNotInDB;
+        private readonly HashSet<string> _personalTitleIDs = new HashSet<string>();
 
         private readonly string _fixedKeys = Path.Combine("Tools", "FixedKeys.txt");
         private readonly string _profileKeys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch", "prod.keys");
@@ -389,6 +395,8 @@ namespace SwitchSDTool
 
             foreach (var serial in keysToRemove)
                 Configuration.Data.RSAKeys.Remove(serial);
+
+            txtTitleKeyURL.Text = Configuration.Data.TitleKeyDataBaseURL ?? string.Empty;
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -396,7 +404,7 @@ namespace SwitchSDTool
             if (Ticket.RsaE != 0x10001)
             {
                 btnLoadRSAKEK_Click(null, null);
-                if (Ticket.RsaE != 0x10001)
+                if (Ticket.RsaE != 0x10001 && cbRSAKey.Items.Count < 2)
                 {
                     UpdateStatus("Cannot Dump tickets without RSA KEK");
                     return;
@@ -414,6 +422,7 @@ namespace SwitchSDTool
 
             var size = 0x4000;
             var data = new byte[size];
+            var count = _tickets.Count;
 
             var commonTicketLength = new FileInfo(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1")).Length;
             InitializeProgress((ulong)(commonTicketLength +
@@ -495,17 +504,32 @@ namespace SwitchSDTool
                             var ticket = new Ticket(data.Skip(i % size).Take(0x400).ToArray());
                             if (!firstTicket && !ticket.Anonymize())
                             {
-                                UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
-                                UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
-                                HideProgress();
-                                btnLoadRSAKEK.Enabled = true;
-                                Ticket.RsaD = BigInteger.Zero;
-                                Ticket.RsaN = BigInteger.Zero;
-                                Ticket.RsaE = BigInteger.Zero;
-                                return;
+                                var rsafound = false;
+                                for (var j = 1; j < cbRSAKey.Items.Count && !rsafound; j++)
+                                {
+                                    cbRSAKey.SelectedIndex = j;
+                                    cbRSAKey_SelectedIndexChanged(null, null);
+                                    rsafound |= ticket.Anonymize();
+                                }
+
+                                if (!rsafound)
+                                {
+                                    UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
+                                    UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
+                                    HideProgress();
+                                    btnLoadRSAKEK.Enabled = true;
+                                    Ticket.RsaD = BigInteger.Zero;
+                                    Ticket.RsaN = BigInteger.Zero;
+                                    Ticket.RsaE = BigInteger.Zero;
+                                    return;
+                                }
                             }
 
+                            if (_personalTitleIDs.Add(ticket.TitleID.ToHexString())) _ticketsNotInDB++;
+
                             _tickets[ticket.TitleID.ToHexString()] = ticket;
+                            _personalTickets[SHA256.Create().ComputeHash(data.Skip(i % size).Take(0x2C0).ToArray()).ToHexString()] = ticket;
+                            
                             firstTicket = true;
                         }
                         catch
@@ -517,9 +541,10 @@ namespace SwitchSDTool
                     }
                 }
             }
-
             HideProgress();
-            UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
+
+            var dbresult = _databaseTitleNames.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
+            UpdateStatus($"Done. {_tickets.Count - count} new tickets dumped. {dbresult}{_tickets.Count} Tickets total.");
         }
 
         private static readonly Dictionary<string, byte[]> _keyHashes = new Dictionary<string, byte[]>
@@ -959,32 +984,54 @@ namespace SwitchSDTool
                 {
                     node = tvGames.Nodes.Add(newTitleID, $"{_titleNames[newTitleID]} - {newTitleID}");
                     node.ImageIndex = node.SelectedImageIndex = 0;
+                    node.Tag = newTitleID;
                 }
+
+                string nodeTitle;
+                if (_databaseTitleNames.TryGetValue(titleID, out var dbTitleName) && type.Equals("DLC"))
+                    nodeTitle = $"{dbTitleName} - {titleID} - [{type}]";
+                else
+                    nodeTitle = $"{titleID} - [{type}]";
 
                 for (var i = 0; i < node.Nodes.Count; i++)
                 {
-                    if (!node.Nodes[i].Text.Equals($"{titleID} - [{type}]")) continue;
+                    if (!node.Nodes[i].Text.Equals(nodeTitle)) continue;
                     return;
                 }
 
-                node = node.Nodes.Add(titleID, $"{titleID} - [{type}]");
+                node = node.Nodes.Add(titleID, nodeTitle);
 
                 node.Tag = titleID;
                 node.ImageIndex = node.Parent.ImageIndex;
                 node.SelectedImageIndex = node.Parent.SelectedImageIndex;
+                
                 return;
             }
 
             if (p == null)
             {
+                if (!_databaseTitleNames.TryGetValue(newTitleID, out var titleName)) titleName = "Unknown";
                 var node = tvGames.Nodes.Find(newTitleID, false).FirstOrDefault();
-                var basenode = node?.Nodes.Find($"{titleID} - [{type}]", false).FirstOrDefault();
-                if (basenode != null) return;
 
-                if(node == null)
-                    node = tvGames.Nodes.Add(newTitleID, $"Unknown - {newTitleID}");
+                if (node == null)
+                {
+                    node = tvGames.Nodes.Add(newTitleID, $"{titleName} - {newTitleID}");
+                    node.Tag = newTitleID;
+                }
 
-                var gameNode1 = node.Nodes.Add(titleID, $"{titleID} - [{type}]");
+                string nodeTitle;
+                if (_databaseTitleNames.TryGetValue(titleID, out var dbTitleName) && type.Equals("DLC"))
+                    nodeTitle = $"{dbTitleName} - {titleID} - [{type}]";
+                else
+                    nodeTitle = $"{titleID} - [{type}]";
+
+                for (var i = 0; i < node.Nodes.Count; i++)
+                {
+                    if (!node.Nodes[i].Text.Equals(nodeTitle)) continue;
+                    return;
+                }
+
+                var gameNode1 = node.Nodes.Add(titleID, nodeTitle);
                 gameNode1.Tag = titleID;
 
                 node.ImageIndex = node.SelectedImageIndex = 0;
@@ -998,6 +1045,7 @@ namespace SwitchSDTool
 
             _titleNames[newTitleID] = titleIconPair.Item1;
             var gameNode = tvGames.Nodes.Add(newTitleID, $"{titleIconPair.Item1}");
+            gameNode.Tag = newTitleID;
             gameNode.ToolTipText = $@"{titleIconPair.Item1}{Environment.NewLine}{titleIconPair.Item2}{
                 Environment.NewLine}{titleIconPair.Item3}{Environment.NewLine}{titleIconPair.Item4}";
             
@@ -1005,7 +1053,13 @@ namespace SwitchSDTool
             GameImagesAdd(titleIconPair.Item5);
             gameNode.ImageIndex = gameNode.SelectedImageIndex = ilGames.Images.Count - 1;
             {
-                var gameNode1 = gameNode.Nodes.Add(titleID, $"{titleID} - [{type}]");
+                string nodeTitle;
+                if (_databaseTitleNames.TryGetValue(titleID, out var dbTitleName) && type.Equals("DLC"))
+                    nodeTitle = $"{dbTitleName} - {titleID} - [{type}]";
+                else
+                    nodeTitle = $"{titleID} - [{type}]";
+
+                var gameNode1 = gameNode.Nodes.Add(titleID, nodeTitle);
                 gameNode1.Tag = titleID;
                 gameNode1.ImageIndex = gameNode1.SelectedImageIndex = ilGames.Images.Count - 1;
             }
@@ -1071,12 +1125,15 @@ namespace SwitchSDTool
         {
             var tid = cnmt.TitleID;
 
-            if (!_titleNames.TryGetValue(tid.ToHexString(), out var titleName))
+            var result = cnmt.Type == CNMT.packTypes.AddOnContent 
+                ? _databaseTitleNames.TryGetValue(tid.ToHexString(), out var titleName) 
+                : _titleNames.TryGetValue(tid.ToHexString(), out titleName);
+
+            if (!result)
             {
                 tid[6] &= 0xE0;
                 tid[7] = 0;
-
-                if (!_titleNames.TryGetValue(tid.ToHexString(), out titleName))
+                if (!_titleNames.TryGetValue(tid.ToHexString(), out titleName) && !_databaseTitleNames.TryGetValue(tid.ToHexString(), out titleName))
                     titleName = "Unknown";
             }
 
@@ -1145,6 +1202,7 @@ namespace SwitchSDTool
 
                 _progressMod = 0;
                 tsProgress.Visible = true;
+                tsProgress.Style = ProgressBarStyle.Continuous;
                 tsProgress.Value = 0;
                 tsProgress.Maximum = (int) max;
             }
@@ -1154,6 +1212,12 @@ namespace SwitchSDTool
             }
             
             Application.DoEvents();
+        }
+
+        private void SpinProgressBar()
+        {
+            tsProgress.Visible = true;
+            tsProgress.Style = ProgressBarStyle.Marquee;
         }
 
         private void UpdateProgress(ulong progress)
@@ -1545,7 +1609,8 @@ namespace SwitchSDTool
             tvGames.Visible = true;
 
             HideProgress();
-            UpdateStatus($@"NCA Parsing completed - {_cnmtFiles.Count} Titles present");
+
+            UpdateStatus($@"NCA Parsing completed - {_cnmtFiles.Count} Titles present.");
         }
 
         private void btnLanguageUp_Click(object sender, EventArgs e)
@@ -1573,6 +1638,7 @@ namespace SwitchSDTool
                 if (!_controlNACP.TryGetValue(tvGames.Nodes[i].ImageIndex, out var nacp)) continue;
                 var data = nacp.GetTitleNameIcon(tvLanguage);
                 _titleNames[nacp.BaseTitleID] = data.Item1;
+
                 tvGames.Nodes[i].Text = data.Item1;
                 tvGames.Nodes[i].ToolTipText =
                     $@"{data.Item1}{Environment.NewLine}{data.Item2}{Environment.NewLine
@@ -1975,6 +2041,151 @@ namespace SwitchSDTool
             Ticket.RsaD = BigInteger.Zero;
             Ticket.RsaE = BigInteger.Zero;
             btnLoadRSAKEK.Enabled = true;
+        }
+
+        private void txtTitleKeyURL_TextChanged(object sender, EventArgs e)
+        {
+            Configuration.Data.TitleKeyDataBaseURL = txtTitleKeyURL.Text;
+        }
+
+        private void btnGetTitleKeys_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(Configuration.Data.TitleKeyDataBaseURL)) return;
+            try
+            {
+                UpdateStatus("Retrieving Title Key database");
+                var count = _tickets.Count;
+                HttpWebRequest myHttpWebRequest =
+                    (HttpWebRequest) WebRequest.Create(Configuration.Data.TitleKeyDataBaseURL);
+                myHttpWebRequest.MaximumAutomaticRedirections = 1;
+                myHttpWebRequest.AllowAutoRedirect = true;
+                myHttpWebRequest.Timeout = 30000;
+                var httpWebResponseAsync = myHttpWebRequest.GetResponseAsync();
+
+                SpinProgressBar();
+                while (!httpWebResponseAsync.IsCanceled && !httpWebResponseAsync.IsCompleted &&
+                       !httpWebResponseAsync.IsFaulted)
+                {
+                    Application.DoEvents();
+                }
+                
+                if (httpWebResponseAsync.IsFaulted || httpWebResponseAsync.IsCanceled)
+                {
+                    if(httpWebResponseAsync.Exception != null)
+                        throw httpWebResponseAsync.Exception;
+                    UpdateStatus("Database update failed for an unknown reason.");
+                    HideProgress();
+                    return;
+                }
+                HttpWebResponse myHttpWebResponse = (HttpWebResponse)httpWebResponseAsync.Result;
+
+                if (myHttpWebResponse.StatusCode == HttpStatusCode.OK)
+                {
+                    var stream = myHttpWebResponse.GetResponseStream();
+                    if (stream == null) return;
+                    var lines = new List<string>();
+                    using (var sr = new StreamReader(stream))
+                    {
+                        while (!sr.EndOfStream)
+                        {
+                            lines.Add(sr.ReadLine());
+
+                        }
+                    }
+
+                    InitializeProgress((ulong) lines.Count, true);
+                    foreach (var line in lines)
+                    {
+                        UpdateProgress(1);
+                        var split = line?.Split('|') ?? new string[0];
+                        if (split.Length < 3 || split[0].ToByte().Length != 16 || split[1].ToByte().Length != 16)
+                            continue;
+                        split[2] = string.Join("|", split.Skip(2));
+                        var typeBytes = split[0].Substring(12, 4).ToByte();
+                        typeBytes[0] &= 0x1F;
+                        if (typeBytes[0] == 0x08 && typeBytes[1] == 0x00)
+                            continue; //Do NOT ADD update title keys to the ticket list. the resulting tickets won't be signed,
+                        //and therefore will not work on ALL unmodified switch consoles.
+
+                        if (!_personalTitleIDs.Add(split[0].Substring(0, 16).ToLowerInvariant()) &&
+                            !_databaseTitleNames.ContainsKey(split[0].Substring(0, 16).ToLowerInvariant()))
+                            _ticketsNotInDB--;
+
+                        _tickets[split[0].Substring(0, 16).ToLowerInvariant()] = new Ticket(split[0], split[1]);
+                        _databaseTitleNames[split[0].Substring(0, 16).ToLowerInvariant()] = split[2];
+                    }
+                }
+
+                var dbresult = _personalTickets.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
+                UpdateStatus(
+                    $"{_tickets.Count - count} New Title Keys retrieved. {dbresult}{_tickets.Count} Tickets total.");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus("Updating of database failed due to an exception:",
+                    $"Updating of database failed due to an exception: {ex.Message}{Environment.NewLine}",
+                    $"Stack Trace: {ex.StackTrace}");
+            }
+            HideProgress();
+        }
+
+        private void btnGetTitleKeys_Click_1(object sender, EventArgs e)
+        {
+            var titlekeydump = string.Empty;
+
+            UpdateStatus("Extracting Title Key log");
+            var tickets = _personalTickets.Values.Where(x => !_databaseTitleNames.ContainsKey(x.TitleID.ToHexString())).ToArray();
+            InitializeProgress((ulong) tickets.Length);
+
+            for(var i = 0; i < tickets.Length; i++)
+            {
+                UpdateProgress(1);
+                var ticket = tickets[i];
+                if (!ticket.Anonymize())
+                {
+                    for (var j = 1; j < cbRSAKey.Items.Count; j++)
+                    {
+                        cbRSAKey.SelectedIndex = j;
+                        cbRSAKey_SelectedIndexChanged(null, null);
+                        if (ticket.Anonymize()) break;
+                    }
+
+                    if (!ticket.Anonymize())
+                        continue;
+                }
+
+                if (ticket.Data[0x140] == 0 && ticket.Data[0x141] == 0 && ticket.Data[0x142] == 0 && ticket.Data[0x143] == 0)
+                    continue;
+
+                var issuer = Encoding.UTF8.GetString(ticket.Data.Skip(0x140).Take(0x40).ToArray());
+                var index = issuer.IndexOf("\0", StringComparison.Ordinal);
+                if (index > 0) issuer = issuer.Substring(0, index);
+
+                if (!issuer.StartsWith("Root"))
+                    titlekeydump += $"Unknown Ticket verifier: {issuer}{Environment.NewLine}";
+
+                titlekeydump += $"Ticket {i}:{Environment.NewLine}";
+                titlekeydump += $"    Rights ID: {ticket.RightsID.ToHexString()}{Environment.NewLine}";
+                titlekeydump += $"    Title ID:  {ticket.TitleID.ToHexString()}{Environment.NewLine}";
+                titlekeydump += $"    Titlekey:  {ticket.TitleKey.ToHexString()}{Environment.NewLine}";
+            }
+
+            HideProgress();
+            if (titlekeydump == string.Empty)
+            {
+                UpdateStatus("No Title keys to show");
+                return;
+            }
+
+            try
+            {
+                File.WriteAllText("personal_keys.txt", titlekeydump);
+                UpdateStatus("Title keys saved to personal_keys.txt", titlekeydump);
+            }
+            catch
+            {
+                UpdateStatus("Click this log entry to see Title key dump", titlekeydump);
+            }
         }
     }
 }

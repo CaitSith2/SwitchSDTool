@@ -30,6 +30,8 @@ namespace SwitchSDTool
 
         public Dictionary<string, string> RSAKeys =
             new Dictionary<string, string>();
+
+        public string TitleKeyDataBaseURL = null;
     }
 
     [SuppressMessage("ReSharper", "UnusedMember.Global")]
