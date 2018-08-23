@@ -14,6 +14,8 @@ using System.Windows.Forms;
 using CTR;
 using Microsoft.Win32;
 using SwitchSDTool.Properties;
+using libhac;
+using Application = System.Windows.Forms.Application;
 
 namespace SwitchSDTool
 {
@@ -27,6 +29,8 @@ namespace SwitchSDTool
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _databaseTitleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
+
+        private readonly Keyset _keyset = new Keyset();
 
         private int _ticketsNotInDB;
         private readonly HashSet<string> _personalTitleIDs = new HashSet<string>();
@@ -676,19 +680,30 @@ namespace SwitchSDTool
             if (File.Exists(_fixedKeys))
             {
                 var result = KeysTxtHasRequiredKeys(_fixedKeys);
-                if(result.Item1 && !File.Exists("keys.txt"))
-                return true;
+                if (result.Item1 && !File.Exists("keys.txt"))
+                {
+                    ExternalKeys.ReadKeyFile(_fixedKeys, keyset: _keyset);
+                    if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
+                    return true;
+                }
             }
 
             if (File.Exists(_profileKeys))
             {
                 var result = KeysTxtHasRequiredKeys(_profileKeys);
                 if (!result.Item1) return false;
+                string filename;
                 try
                 {
                     File.WriteAllText(_fixedKeys, result.Item2);
+                    filename = _fixedKeys;
                 }
-                catch { /**/ }
+                catch
+                {
+                    filename = _profileKeys;
+                }
+                ExternalKeys.ReadKeyFile(filename, keyset: _keyset);
+                if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
                 return true;
             }
 
@@ -696,15 +711,22 @@ namespace SwitchSDTool
             {
                 var result = KeysTxtHasRequiredKeys("keys.txt");
                 if (!result.Item1) return false;
+                string filename;
 
                 try
                 {
                     File.WriteAllText(_fixedKeys, result.Item2);
+                    filename = _fixedKeys;
                 }
-                catch { /**/ }
+                catch
+                {
+                    filename = "keys.txt";
+                }
 
                 //Directory.CreateDirectory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch"));
                 //File.Copy("keys.txt", _profileKeys);
+                ExternalKeys.ReadKeyFile(filename, keyset: _keyset);
+                if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
                 return true;
             }
 
@@ -770,6 +792,14 @@ namespace SwitchSDTool
                 {
                     UpdateStatus("Cannot Decrypt NCAs from SD card without a valid SD Key. Assuming USER Nand with decrypted files is mounted instead.");
                 }
+                else
+                {
+                    if (!CheckKeys())
+                    {
+                        UpdateStatus("Cannot proceed without valid keys.");
+                        return;
+                    }
+                }
             }
 
             var ncadir = Path.Combine("tools", "nca");
@@ -812,11 +842,11 @@ namespace SwitchSDTool
                         $@"Directory ""{nca}"" is empty.");
                     continue;
                 }
-
+                var hash = SHA256.Create();
                 if (_sdKey == null)
                 {
                     UpdateStatus($@"Processing {Path.GetFileName(nca)} - Verifying");
-                    var hash = SHA256.Create();
+                    
 
                     InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                     try
@@ -879,8 +909,8 @@ namespace SwitchSDTool
 
                     continue;
                 }
-
-                UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
+                
+                /*UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
                 InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
                 p.StartInfo.Arguments =
                     $@"{FixedKeysArgument}-t nax0 --sdseed={_sdKey.ToHexString()} --sdpath=""/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{
@@ -924,11 +954,99 @@ namespace SwitchSDTool
                     continue;
                 }
 
-                AppendStatus(", Verified");
+                AppendStatus(", Verified");*/
+
+                
+                using (var naxfile = new Nax0(_keyset, OpenSplitNcaStream(nca), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{Path.GetFileName(nca)}", false))
+                {
+                    using (var ncaData = new Nca(_keyset, naxfile.Stream, true))
+                    {
+                        if (ncaData.Header.ContentType != ContentType.Control &&
+                            ncaData.Header.ContentType != ContentType.Meta)
+                            continue;
+                    }
+                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
+                    InitializeProgress((ulong)ncaFileParts.Sum(x => new FileInfo(x).Length));
+
+                    naxfile.Stream.Position = 0;
+
+                    using (var sw = new BinaryWriter(new FileStream(ncafile, FileMode.Create)))
+                    {
+                        using (var sr = new BinaryReader(naxfile.Stream))
+                        {
+                            byte[] bytes;
+                            do
+                            {
+                                bytes = sr.ReadBytes(0x1000000);
+                                if (bytes.Length <= 0) continue;
+
+                                sw.Write(bytes);
+                                UpdateProgress((ulong)bytes.LongLength);
+                                hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
+                            } while (bytes.Length > 0);
+                        }
+
+                        hash.TransformFinalBlock(new byte[0], 0, 0);
+                    }
+                    var result = nca.ToLowerInvariant()
+                        .Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
+
+                    if (!result)
+                    {
+                        AppendStatus(", Verification Failed: File is corrupt.");
+
+                        if (File.Exists(ncafile))
+                            File.Delete(ncafile);
+
+                        continue;
+                    }
+
+                    AppendStatus(", Done.");
+                }
+
             }
 
             HideProgress();
             UpdateStatus($@"NCA Decryption completed.");
+        }
+
+        private static Stream OpenSplitNcaStream(string path)
+        {
+            List<string> files = new List<string>();
+            List<Stream> streams = new List<Stream>();
+
+            if (Directory.Exists(path))
+            {
+                while (true)
+                {
+                    var partName = Path.Combine(path, $"{files.Count:D2}");
+                    if (!File.Exists(partName)) break;
+
+                    files.Add(partName);
+                }
+            }
+            else if (File.Exists(path))
+            {
+                if (Path.GetFileName(path) != "00")
+                {
+                    return File.Open(path, FileMode.Open, FileAccess.Read);
+                }
+                files.Add(path);
+            }
+            else
+            {
+                throw new FileNotFoundException("Could not find the input file or directory");
+            }
+
+            foreach (var file in files)
+            {
+                streams.Add(File.Open(file, FileMode.Open, FileAccess.Read));
+            }
+
+            if (streams.Count == 0) return null;
+
+            var stream = new CombinationStream(streams);
+            return stream;
         }
 
         private void ClearGameImageLists()
@@ -1329,11 +1447,14 @@ namespace SwitchSDTool
                     CNMT.ncaTypes.Control
                 };
 
+                var sdfiles = Configuration.GetSDDirectories;
+
                 var exitEntries = new List<CNMT.Entry>();
                 exitEntries.AddRange(from type in types
                     from entry in cnmt.Entries
                     where entry.Type == type
-                    where !File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    //where !File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.All(x => !x.EndsWith(entry.ID.ToHexString() + ".nca"))
                     select entry);
                 if (exitEntries.Any())
                 {
@@ -1347,16 +1468,20 @@ namespace SwitchSDTool
                 types.Remove(CNMT.ncaTypes.Control);
                 types.Add(CNMT.ncaTypes.DeltaFragment);
 
+                
+
                 var startingEntries = new List<CNMT.Entry>();
                 var controlEntries = new List<CNMT.Entry>();
                 startingEntries.AddRange(from type in types
                     from entry in cnmt.Entries
                     where entry.Type == type
-                    where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.EndsWith(entry.ID.ToHexString() + ".nca"))
                     select entry);
                 controlEntries.AddRange(from entry in cnmt.Entries
                     where entry.Type == CNMT.ncaTypes.Control
-                    where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.EndsWith(entry.ID.ToHexString() + ".nca"))
                     select entry);
 
                 var packFiles = new List<string>
@@ -1479,12 +1604,17 @@ namespace SwitchSDTool
         private void WriteNCAtoNSP(FileStream nspFile, BinaryWriter sw, CNMT.Entry entry)
         {
             var hash = SHA256.Create();
-            using (var ncaFile =
+            var filename = Configuration.GetSDDirectories.FirstOrDefault(x => x.EndsWith(entry.ID.ToHexString() + ".nca"));
+            if(filename == null)
+                throw new Exception($@"{entry.ID.ToHexString()}.nca does not exist.");
+
+            /*using (var ncaFile =
                 new FileStream(
                     Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"),
-                    FileMode.Open))
+                    FileMode.Open))*/
+            using (var ncaFile = new Nax0(_keyset, OpenSplitNcaStream(filename), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(filename))}/{Path.GetFileName(filename)}", false))
             {
-                using (var sr = new BinaryReader(ncaFile))
+                using (var sr = new BinaryReader(ncaFile.Stream))
                 {
                     byte[] bytes;
                     do
@@ -1508,7 +1638,12 @@ namespace SwitchSDTool
 
         private void btnParseNCA_Click(object sender, EventArgs e)
         {
-            if (!CheckKeys()) return;
+            if (_sdKey == null)
+            {
+                btnFindSDKey_Click(null, null);
+            }
+            if (_sdKey == null || !CheckKeys()) return;
+           
             UpdateStatus($@"Parsing Decrypted NCA files");
 
             var ncadir = Path.Combine("tools", "nca");
@@ -1579,8 +1714,7 @@ namespace SwitchSDTool
                     File.Delete(f);
                 Directory.Delete(Path.Combine(ncadir, "section0"));
 
-                
-                var controldata = cnmt.Entries.FirstOrDefault(x => x.Type == CNMT.ncaTypes.Control);
+                    var controldata = cnmt.Entries.FirstOrDefault(x => x.Type == CNMT.ncaTypes.Control);
                 if (controldata == null) metas.Add(cnmt);
                 else controls.Add(cnmt);
             }
