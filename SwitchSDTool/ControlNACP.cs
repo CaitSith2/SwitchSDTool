@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using libhac;
 using SwitchSDTool.Properties;
 
 namespace SwitchSDTool
@@ -33,17 +34,17 @@ namespace SwitchSDTool
             return ($"Unknown", string.Empty, string.Empty, BaseTitleID, Resources.Ultra_microSDXC_UHS_I_A1_front);
         }
 
-        public ControlNACP(string ncadir, string baseTitleID)
+        public ControlNACP(Romfs romfs, string baseTitleID)
         {
             TitleNames = new string[15];
             DeveloperNames = new string[15];
             Icons = new Bitmap[15];
             Languages = new List<Languages>();
             BaseTitleID = baseTitleID;
-            using (var control = File.OpenRead(Path.Combine(ncadir, "control.nacp")))
+            using (var control = new BinaryReader(romfs.OpenFile("/control.nacp")))
             {
                 var versionBytes = new byte[16];
-                control.Seek(0x3060, SeekOrigin.Begin);
+                control.BaseStream.Seek(0x3060, SeekOrigin.Begin);
                 control.Read(versionBytes, 0, 0x10);
 
                 var version = Encoding.UTF8.GetString(versionBytes);
@@ -55,17 +56,17 @@ namespace SwitchSDTool
                 for (var i = 0; i < 15; i++)
                 {
                     var offset = i * 0x300;
-                    control.Seek(offset, SeekOrigin.Begin);
+                    control.BaseStream.Seek(offset, SeekOrigin.Begin);
                     var titlenameBytes = new byte[0x200];
                     var developernameBytes = new byte[0x100];
                     control.Read(titlenameBytes, 0, 0x200);
                     control.Read(developernameBytes, 0, 0x100);
 
                     var lname = ((Languages)i).ToString();
-                    lname = Path.Combine(ncadir, $"icon_{lname}.dat");
-                    if (!File.Exists(lname)) continue;
+                    lname = $"/icon_{lname}.dat";
+                    if (!romfs.FileExists(lname)) continue;
                     Bitmap icon;
-                    using (var bm = new Bitmap(lname))
+                    using (var bm = new Bitmap(romfs.OpenFile(lname)))
                     {
                         icon = new Bitmap(bm);
                     }
@@ -87,9 +88,6 @@ namespace SwitchSDTool
                     Icons[i] = icon;
                 }
             }
-
-            foreach (var ncadirfile in Directory.GetFiles(ncadir))
-                File.Delete(ncadirfile);
         }
     }
 }
