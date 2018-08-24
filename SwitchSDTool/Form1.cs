@@ -27,7 +27,8 @@ namespace SwitchSDTool
 
         private readonly Dictionary<string, Ticket> _tickets = new Dictionary<string, Ticket>();
         private readonly Dictionary<string, Ticket> _personalTickets = new Dictionary<string, Ticket>();
-        private readonly Dictionary<string, CNMT> _cnmtFiles = new Dictionary<string, CNMT>();
+        private readonly Dictionary<string, Cnmt> _cnmtFiles = new Dictionary<string, Cnmt>();
+        private readonly Dictionary<string, CnmtContentEntry> _cnmtNcaFiles = new Dictionary<string, CnmtContentEntry>();
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _databaseTitleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
@@ -40,10 +41,6 @@ namespace SwitchSDTool
 
         private readonly string _fixedKeys = Path.Combine("Tools", "FixedKeys.txt");
         private readonly string _profileKeys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch", "prod.keys");
-        
-        private string FixedKeysArgument => File.Exists(_fixedKeys)
-            ? $@"--keyset={_fixedKeys} "
-            : (File.Exists(_profileKeys) ? "" : $@"--keyset=keys.txt ");
 
         public Form1()
         {
@@ -707,54 +704,6 @@ namespace SwitchSDTool
             return false;
         }
 
-        private bool VerifyNCAFile(string fileName)
-        {
-            var hash = SHA256.Create();
-
-            InitializeProgress((ulong) new FileInfo(fileName).Length);
-            using (var sr = new BinaryReader(new FileStream(fileName, FileMode.Open)))
-            {
-                byte[] bytes;
-                do
-                {
-                    bytes = sr.ReadBytes(0x100000);
-                    if (bytes.Length == 0x100000)
-                        hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
-                    else
-                        hash.TransformFinalBlock(bytes, 0, bytes.Length);
-                    UpdateProgress((ulong)bytes.LongLength);
-                } while (bytes.Length == 0x100000);
-            }
-
-            return fileName.ToLowerInvariant().Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
-        }
-
-        private string _message = string.Empty;
-        private string _error = string.Empty;
-
-        private void StartProcess(Process p, string filename = null)
-        {
-            _message = string.Empty;
-            _error = string.Empty;
-
-            p.Start();
-            var message = p.StandardOutput.ReadToEndAsync();
-            var error = p.StandardError.ReadToEndAsync();
-
-            while (!p.HasExited)
-            {
-                Application.DoEvents();
-                Thread.Sleep(10);
-                p.Refresh();
-                if(!string.IsNullOrEmpty(filename) && File.Exists(filename))
-                    SetProgress((ulong) new FileInfo(filename).Length);
-            }
-
-            _message = message.Result;
-            _error = error.Result;
-        }
-
-
         private void btnDecryptNCA_Click(object sender, EventArgs e)
         {
             if (!CheckKeys()) return;
@@ -775,24 +724,8 @@ namespace SwitchSDTool
                 }
             }
 
-            var ncadir = Path.Combine("tools", "nca");
-            if (!Directory.Exists(ncadir))
-                Directory.CreateDirectory(ncadir);
-
             if (!Directory.Exists(Configuration.Data.Decryptionpath))
                 Directory.CreateDirectory(Configuration.Data.Decryptionpath);
-
-            var p = new Process
-            {
-                StartInfo =
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    FileName = Path.Combine("Tools", "hactool.exe"),
-                    CreateNoWindow = true
-                }
-            };
 
             var ncaFiles = Configuration.GetSDDirectories;
             if (ncaFiles.Length == 0)
@@ -883,53 +816,6 @@ namespace SwitchSDTool
                     continue;
                 }
                 
-                /*UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
-                InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
-                p.StartInfo.Arguments =
-                    $@"{FixedKeysArgument}-t nax0 --sdseed={_sdKey.ToHexString()} --sdpath=""/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{
-                            Path.GetFileName(nca)
-                        }"" --plaintext=""{ncafile}"" ""{nca}""";
-                StartProcess(p, ncafile);
-
-                if (_message.Contains("Error: NAX0 key derivation failed."))
-                {
-                    AppendStatus(", Failed: File is corrupted or wrong SD Key is loaded.");
-
-                    if (File.Exists(ncafile))
-                        File.Delete(ncafile);
-
-                    btnFindSDKey.Enabled = true;
-                    continue;
-                }
-
-                if (p.ExitCode != 0)
-                {
-                    AppendStatus(", Failed: Click me and Check Message log above to see why.",
-                        $@"hactool {p.StartInfo.Arguments}{Environment.NewLine}Standard Output: {_message}{
-                                Environment.NewLine
-                            }Error Output: {_error}{Environment.NewLine}{Environment.NewLine}");
-
-                    if (File.Exists(ncafile))
-                        File.Delete(ncafile);
-
-                    continue;
-                }
-
-                AppendStatus(", Done. Verifying");
-
-                if (!VerifyNCAFile(ncafile))
-                {
-                    AppendStatus(", Verification Failed: File is corrupt.");
-
-                    if (File.Exists(ncafile))
-                        File.Delete(ncafile);
-
-                    continue;
-                }
-
-                AppendStatus(", Verified");*/
-
-                
                 using (var naxfile = new Nax0(_keyset, OpenSplitNcaStream(nca), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{Path.GetFileName(nca)}", false))
                 {
                     using (var ncaData = new Nca(_keyset, naxfile.Stream, true))
@@ -950,7 +836,7 @@ namespace SwitchSDTool
                             byte[] bytes;
                             do
                             {
-                                bytes = sr.ReadBytes(0x1000000);
+                                bytes = sr.ReadBytes(0x100000);
                                 if (bytes.Length <= 0) continue;
 
                                 sw.Write(bytes);
@@ -1056,7 +942,7 @@ namespace SwitchSDTool
             ilGamesExtraLarge.Images[index] = new Bitmap(b, new Size(256,256));
         }
 
-        private void ReadControlInfo(string ncadir, string titleID, Process p)
+        private void ReadControlInfo(string titleID, CnmtContentEntry entry)
         {
             var titleIDBytes = titleID.ToByte();
             titleIDBytes[6] &= 0xE0;
@@ -1099,7 +985,7 @@ namespace SwitchSDTool
                 return;
             }
 
-            if (p == null)
+            if (entry == null)
             {
                 if (!_databaseTitleNames.TryGetValue(newTitleID, out var titleName)) titleName = "Unknown";
                 var node = tvGames.Nodes.Find(newTitleID, false).FirstOrDefault();
@@ -1130,8 +1016,12 @@ namespace SwitchSDTool
 
                 return;
             }
-            StartProcess(p);
-            var nacp = new ControlNACP(ncadir, newTitleID);
+            var ncaFile = new Nca(_keyset, File.Open(Path.Combine(Configuration.Data.Decryptionpath, entry.NcaId.ToHexString() + ".nca"),FileMode.Open, FileAccess.Read), false);
+            var section = ncaFile.OpenSection(0, false);
+            var romfs = new Romfs(section);
+            var nacp = new ControlNACP(romfs, newTitleID);
+            ncaFile.Dispose();
+
             var titleIconPair = nacp.GetTitleNameIcon(tvLanguage);
 
             _titleNames[newTitleID] = titleIconPair.Item1;
@@ -1212,11 +1102,11 @@ namespace SwitchSDTool
             return _cnmtFiles.TryGetValue(titleID, out var cnmt) && PackNSP(cnmt);
         }
 
-        private bool PackNSP(CNMT cnmt)
+        private bool PackNSP(Cnmt cnmt)
         {
-            var tid = cnmt.TitleID;
+            var tid = $"{cnmt.TitleId:x16}".ToByte();
 
-            var result = cnmt.Type == CNMT.packTypes.AddOnContent 
+            var result = cnmt.Type == TitleType.AddOnContent
                 ? _databaseTitleNames.TryGetValue(tid.ToHexString(), out var titleName) 
                 : _titleNames.TryGetValue(tid.ToHexString(), out titleName);
 
@@ -1231,18 +1121,18 @@ namespace SwitchSDTool
             // ReSharper disable once SwitchStatementMissingSomeCases
             switch (cnmt.Type)
             {
-                case CNMT.packTypes.Application:
-                    titleName += $@" [{cnmt.TitleID.ToHexString().ToUpperInvariant()}][v{cnmt.Version}].nsp";
+                case TitleType.Application:
+                    titleName += $@" [{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
                     break;
-                case CNMT.packTypes.Patch:
-                    titleName += $@" [UPD][{cnmt.TitleID.ToHexString().ToUpperInvariant()}][v{cnmt.Version}].nsp";
+                case TitleType.Patch:
+                    titleName += $@" [UPD][{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
                     break;
                 default:
-                    titleName += $@" [DLC][{cnmt.TitleID.ToHexString().ToUpperInvariant()}][v{cnmt.Version}].nsp";
+                    titleName += $@" [DLC][{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
                     break;
             }
 
-            if (!_tickets.TryGetValue(cnmt.TitleID.ToHexString(), out var ticket))
+            if (!_tickets.TryGetValue($"{cnmt.TitleId:x16}", out var ticket))
             {
                 UpdateStatus($@"{titleName} cannot be packed. Ticket missing.");
                 return false;
@@ -1250,7 +1140,7 @@ namespace SwitchSDTool
 
             UpdateStatus($@"Packing {titleName}");
 
-            var status = Pack(ticket, cnmt, titleName);
+            var status = Pack(ticket, $"{cnmt.TitleId:x16}", titleName);
             AppendStatus(status.Item2[0],status.Item2.Skip(1).ToArray());
 
             return status.Item1;
@@ -1394,7 +1284,7 @@ namespace SwitchSDTool
             Application.DoEvents();
         }
 
-        public (bool, string[]) Pack(Ticket ticket, CNMT cnmt, string baseTitle)
+        public (bool, string[]) Pack(Ticket ticket, string cnmtTitleID, string baseTitle)
         {
             try
             {
@@ -1410,74 +1300,73 @@ namespace SwitchSDTool
                     //
                 }
 
+                var cnmt = _cnmtFiles[cnmtTitleID];
+                var cnmtNcaFile = _cnmtNcaFiles[cnmtTitleID];
 
-                var types = new List<CNMT.ncaTypes>
+
+                var types = new List<CnmtContentType>
                 {
-                    CNMT.ncaTypes.Program,
-                    CNMT.ncaTypes.LegalInformation,
-                    CNMT.ncaTypes.Data,
-                    CNMT.ncaTypes.HtmlDocument,
-                    CNMT.ncaTypes.Control
+                    CnmtContentType.Program,
+                    CnmtContentType.LegalHtml,
+                    CnmtContentType.Data,
+                    CnmtContentType.OfflineManualHtml,
+                    CnmtContentType.Control
                 };
 
                 var sdfiles = Configuration.GetSDDirectories;
 
-                var exitEntries = new List<CNMT.Entry>();
+                var exitEntries = new List<CnmtContentEntry>();
                 exitEntries.AddRange(from type in types
-                    from entry in cnmt.Entries
+                    from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where !File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.All(x => !x.EndsWith(entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.All(x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))
                     select entry);
                 if (exitEntries.Any())
                 {
                     return (false, new[]
                     {
                         " - Failed.",
-                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{string.Join(Environment.NewLine, exitEntries.Select(x => x.ID.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
+                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{string.Join(Environment.NewLine, exitEntries.Select(x => x.NcaId.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
                     });
                 }
 
-                types.Remove(CNMT.ncaTypes.Control);
-                types.Add(CNMT.ncaTypes.DeltaFragment);
+                types.Remove(CnmtContentType.Control);
+                types.Add(CnmtContentType.UpdatePatch);
 
-                
-
-                var startingEntries = new List<CNMT.Entry>();
-                var controlEntries = new List<CNMT.Entry>();
+                var startingEntries = new List<CnmtContentEntry>();
+                var controlEntries = new List<CnmtContentEntry>();
                 startingEntries.AddRange(from type in types
-                    from entry in cnmt.Entries
+                    from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.Any(x => x.EndsWith(entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
-                controlEntries.AddRange(from entry in cnmt.Entries
-                    where entry.Type == CNMT.ncaTypes.Control
+                controlEntries.AddRange(from entry in cnmt.ContentEntries
+                    where entry.Type == CnmtContentType.Control
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.Any(x => x.EndsWith(entry.ID.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
 
                 var packFiles = new List<string>
                 {
                     ticket.RightsID.ToHexString() + ".cert",
                     ticket.RightsID.ToHexString() + ".tik",
-                    cnmt.CnmtFileName,
-                    cnmt.XmlFileName
+                    $"{cnmtNcaFile.NcaId.ToHexString()}.cnmt.nca",
                 };
 
-                packFiles.InsertRange(2, from entry in startingEntries select entry.ID.ToHexString() + ".nca");
-                packFiles.AddRange(from entry in controlEntries select entry.ID.ToHexString() + ".nca");
+                packFiles.InsertRange(2, from entry in startingEntries select entry.NcaId.ToHexString() + ".nca");
+                packFiles.AddRange(from entry in controlEntries select entry.NcaId.ToHexString() + ".nca");
 
                 var fileSizes = new List<ulong>
                 {
                     0x700,
                     0x2C0,
-                    (ulong) cnmt.CnmtFileData.Length,
-                    (ulong) cnmt.XmlString.Length
+                    (ulong) cnmtNcaFile.Size,
                 };
 
-                fileSizes.InsertRange(2, from entry in startingEntries select entry.Size);
-                fileSizes.AddRange(from entry in controlEntries select entry.Size);
+                fileSizes.InsertRange(2, from entry in startingEntries select (ulong)entry.Size);
+                fileSizes.AddRange(from entry in controlEntries select (ulong)entry.Size);
 
                 var nspFileName = Path.Combine(Configuration.Data.NSPPath, baseTitle.StripIllegalCharacters());
                 using (var nspFile = new FileStream(nspFileName,
@@ -1524,7 +1413,7 @@ namespace SwitchSDTool
                         sw.Write(new byte[remainder]);
 
 
-                        if (cnmt.Type == CNMT.packTypes.Patch)
+                        if (cnmt.Type == TitleType.Patch)
                         {
                             sw.Write(Ticket.XS20);
                             sw.Write(Ticket.CA3);
@@ -1544,8 +1433,8 @@ namespace SwitchSDTool
                             WriteNCAtoNSP(nspFile, sw, entry);
                         }
 
-                        sw.Write(cnmt.CnmtFileData);
-                        sw.Write(cnmt.XmlString);
+                        WriteNCAtoNSP(nspFile, sw, cnmtNcaFile);
+                        //sw.Write(xml);
 
                         foreach (var entry in controlEntries)
                         {
@@ -1574,17 +1463,13 @@ namespace SwitchSDTool
             return (true, new [] { " - Completed" });
         }
 
-        private void WriteNCAtoNSP(FileStream nspFile, BinaryWriter sw, CNMT.Entry entry)
+        private void WriteNCAtoNSP(FileStream nspFile, BinaryWriter sw, CnmtContentEntry entry)
         {
             var hash = SHA256.Create();
-            var filename = Configuration.GetSDDirectories.FirstOrDefault(x => x.EndsWith(entry.ID.ToHexString() + ".nca"));
+            var filename = Configuration.GetSDDirectories.FirstOrDefault(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"));
             if(filename == null)
-                throw new Exception($@"{entry.ID.ToHexString()}.nca does not exist.");
+                throw new Exception($@"{entry.NcaId.ToHexString()}.nca does not exist.");
 
-            /*using (var ncaFile =
-                new FileStream(
-                    Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"),
-                    FileMode.Open))*/
             using (var ncaFile = new Nax0(_keyset, OpenSplitNcaStream(filename), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(filename))}/{Path.GetFileName(filename)}", false))
             {
                 using (var sr = new BinaryReader(ncaFile.Stream))
@@ -1605,7 +1490,7 @@ namespace SwitchSDTool
                 }
 
                 if (!hash.Hash.ToArray().ToHexString().Equals(entry.Hash.ToHexString()))
-                    throw new Exception($@"{entry.ID.ToHexString()}.nca is corrupted.");
+                    throw new Exception($@"{entry.NcaId.ToHexString()}.nca is corrupted.");
             }
         }
 
@@ -1626,89 +1511,62 @@ namespace SwitchSDTool
             if (!Directory.Exists(Configuration.Data.Decryptionpath))
                 Directory.CreateDirectory(Configuration.Data.Decryptionpath);
 
-            var p = new Process
-            {
-                StartInfo =
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    FileName = Path.Combine("Tools", "hactool.exe"),
-                    CreateNoWindow = true
-                }
-            };
-
             var ncaFiles = Configuration.GetDecryptedNCAFiles;
             InitializeProgress((ulong)ncaFiles.Length);
             ClearGameImageLists();
 
-            var controls = new List<CNMT>();
-            var metas = new List<CNMT>();
+            var controls = new List<Cnmt>();
+            var metas = new List<Cnmt>();
 
             for (var j = 0; j < ncaFiles.Length; j++)
             {
                 var ncafile = ncaFiles[j];
                 SetProgress((ulong)j + 1);
-                var filelen = new FileInfo(ncafile).Length;
-                if (filelen > 0x8000)
-                    continue;
 
-                p.StartInfo.Arguments = $@"{FixedKeysArgument}""{ncafile}""";
-                StartProcess(p);
-
-                var match1 = Regex.Match(_message, "Content Type: *(.*)\n");
-                var match2 = Regex.Match(_message, "Title ID: *(.*)\n");
-                if (!match1.Success || !match2.Success || !match1.Groups[1].Value.Trim().Equals("Meta")) continue;
-                if (_error.Contains("Error: section 0 is corrupted!"))
+                using (var ncaStream = File.Open(ncafile, FileMode.Open, FileAccess.Read))
                 {
-                    UpdateStatus($"Unable to Extract Title Meta Data from {Path.GetFileName(ncafile)}");
-                    continue;
+                    using (var ncaData = new Nca(_keyset, ncaStream, true))
+                    {
+                        if (ncaData.Header.ContentType != ContentType.Meta)
+                            continue;
+                        var section = ncaData.OpenSection(0, false);
+                        var pfs = new Pfs(section);
+                        var cnmt = new Cnmt(pfs.OpenFile(pfs.Files[0]));
+                        if (!_cnmtFiles.TryGetValue($"{cnmt.TitleId:x16}", out var oldcnmt) || oldcnmt.TitleVersion.Version < cnmt.TitleVersion.Version)
+                            _cnmtFiles[$"{cnmt.TitleId:x16}"] = cnmt;
+                        else
+                            continue;
+
+                        ncaStream.Position = 0;
+                        var entry = new CnmtContentEntry
+                        {
+                            NcaId = Path.GetFileNameWithoutExtension(ncafile).ToByte(),
+                            Type = CnmtContentType.Meta,
+                            Size = ncaStream.Length,
+                            Hash = SHA256.Create().ComputeHash(ncaStream)
+                        };
+                        _cnmtNcaFiles[$"{cnmt.TitleId:x16}"] = entry;
+
+                        var controldata = cnmt.ContentEntries.FirstOrDefault(x => x.Type == CnmtContentType.Control);
+                        if (controldata == null) metas.Add(cnmt);
+                        else controls.Add(cnmt);
+                    }
                 }
-
-                // = ncafile;
-                p.StartInfo.Arguments =
-                    $@"{FixedKeysArgument}--header={Path.Combine(ncadir, "Header.bin")} --section0dir={
-                            Path.Combine(ncadir, "section0")
-                        } ""{ncafile}""";
-                StartProcess(p);
-
-                var header = File.ReadAllBytes(Path.Combine(ncadir, "Header.bin"));
-                var files = Directory.GetFiles(Path.Combine(ncadir, "section0"));
-                var section0 = File.ReadAllBytes(files[0]);
-                var cnmt = new CNMT(header, section0, ncafile);
-
-                if (!_cnmtFiles.TryGetValue(match2.Groups[1].Value.Trim(), out var oldcnmt) || oldcnmt.Version < cnmt.Version)
-                    _cnmtFiles[match2.Groups[1].Value.Trim()] = cnmt;
-                else
-                    continue;
-
-                File.Delete(Path.Combine(ncadir, "Header.bin"));
-                foreach (var f in files)
-                    File.Delete(f);
-                Directory.Delete(Path.Combine(ncadir, "section0"));
-
-                    var controldata = cnmt.Entries.FirstOrDefault(x => x.Type == CNMT.ncaTypes.Control);
-                if (controldata == null) metas.Add(cnmt);
-                else controls.Add(cnmt);
             }
+
+
 
             tvGames.Visible = false;
             InitializeProgress((ulong) _cnmtFiles.Count);
             ulong count = 0;
 
-            controls = controls.OrderByDescending(x => (x.TitleID[6] & 0x1F) == 0x08 && x.TitleID[7] == 0x00).ToList();
+            controls = controls.OrderByDescending(x => (x.TitleId & 0x1FFFUL) == 0x800UL).ToList();
+            controls.AddRange(metas);
 
             foreach (var cnmt in controls)
             {
-                var controldata = cnmt.Entries.First(x => x.Type == CNMT.ncaTypes.Control);
-                p.StartInfo.Arguments = $@"{FixedKeysArgument}""{Path.Combine(Configuration.Data.Decryptionpath, controldata.ID.ToHexString() + ".nca")}"" --romfsdir={ncadir}";
-                ReadControlInfo(ncadir, cnmt.TitleID.ToHexString(), p);
-                SetProgress(++count);
-            }
-
-            foreach (var cnmt in metas)
-            {
-                ReadControlInfo(ncadir, cnmt.TitleID.ToHexString(), null);
+                var controldata = cnmt.ContentEntries.FirstOrDefault(x => x.Type == CnmtContentType.Control);
+                ReadControlInfo($"{cnmt.TitleId:x16}", controldata);
                 SetProgress(++count);
             }
 
@@ -1907,28 +1765,25 @@ namespace SwitchSDTool
             }
         }
 
-        private void DeleteSDFile(CNMT cnmt, TreeNode childNode)
+        private void DeleteSDFile(Cnmt cnmt, TreeNode childNode)
         {
             var sdcard = Configuration.GetSDDirectories;
             var deleteSuccess = true;
             UpdateStatus($@"Deleting {childNode.Parent.Text} - {childNode.Text}");
-            string ncafile;
-            foreach (var entry in cnmt.Entries)
+            var tid = $"{cnmt.TitleId:x16}";
+            var entries = cnmt.ContentEntries.ToList();
+            entries.Add(_cnmtNcaFiles[tid]);
+            foreach (var entry in entries)
             {
-                ncafile = sdcard.FirstOrDefault(x => x.Contains(entry.ID.ToHexString()));
+                var ncafile = sdcard.FirstOrDefault(x => x.Contains(entry.NcaId.ToHexString()));
                 if (ncafile != null)
                     deleteSuccess &= DeleteSDNCA(ncafile);
                 else
-                    deleteSuccess &= DeleteLocalNCA(entry.ID.ToHexString() + ".nca");
+                    deleteSuccess &= DeleteLocalNCA(entry.NcaId.ToHexString() + ".nca");
             }
 
-            ncafile = sdcard.FirstOrDefault(x => x.Contains(cnmt.CnmtFileName.Replace(".cnmt.nca","")));
-            if (ncafile != null)
-                deleteSuccess &= DeleteSDNCA(ncafile);
-            else
-                deleteSuccess &= DeleteLocalNCA(cnmt.CnmtFileName.Replace(".cnmt.nca", ".nca"));
-
-            _cnmtFiles.Remove(cnmt.TitleID.ToHexString());
+            _cnmtFiles.Remove(tid);
+            _cnmtNcaFiles.Remove(tid);
 
             AppendStatus(deleteSuccess
                 ? " - Completed"
@@ -2094,15 +1949,18 @@ namespace SwitchSDTool
 
             var output = $@"{releasedate}{Environment.NewLine}";
             var cnmt = _cnmtFiles[(string) tvGames.SelectedNode.Tag];
+            var entries = cnmt.ContentEntries.ToList();
+            entries.Insert(0, _cnmtNcaFiles[$"{cnmt.TitleId:x16}"]);
+
             output += $@"Title ID: {tvGames.SelectedNode.Tag}{Environment.NewLine}";
             output += titlekey;
             output += $@"Type: {cnmt.Type}{Environment.NewLine}{Environment.NewLine}";
-            output += $@"{cnmt.CnmtFileName.Replace(".cnmt", "")} (Meta){Environment.NewLine}";
-            foreach (var entry in cnmt.Entries)
+            
+            var sdFiles = Configuration.GetSDDirectories;
+            foreach (var entry in entries)
             {
-                var file = Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca");
-                if (!File.Exists(file)) continue;
-                output += $@"{entry.ID.ToHexString() + ".nca"} ({entry.Type}){Environment.NewLine}";
+                if (sdFiles.All(x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))) continue;
+                output += $@"{entry.NcaId.ToHexString() + ".nca"} ({entry.Type}){Environment.NewLine}";
             }
 
             return output;
