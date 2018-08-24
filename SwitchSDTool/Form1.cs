@@ -31,6 +31,7 @@ namespace SwitchSDTool
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _databaseTitleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
+        private readonly Dictionary<string, DateTime> _titleReleaseDate = new Dictionary<string, DateTime>();
 
         private readonly Keyset _keyset = new Keyset();
 
@@ -2020,7 +2021,7 @@ namespace SwitchSDTool
                     : $@"Game: {data.Item1}{Environment.NewLine
                     }Devloper: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
-                    }Base Title ID: {data.Item4}";
+                    }Base Title ID: {data.Item4}{Environment.NewLine}";
 
             txtGameInfo.Text += AddNCAMetaInfo();
 
@@ -2063,7 +2064,7 @@ namespace SwitchSDTool
                 txtGameInfo.Text = $@"Game: {data.Item1}{Environment.NewLine
                     }Devloper: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
-                    }Base Title ID: {data.Item4}";
+                    }Base Title ID: {data.Item4}{Environment.NewLine}";
             }
             else
             {
@@ -2072,7 +2073,7 @@ namespace SwitchSDTool
                 txtGameInfo.Text = $@"Game: {nacp.TitleNames[index]}{Environment.NewLine
                     }Devloper: {nacp.DeveloperNames[index]}{Environment.NewLine
                     }Version: {nacp.Version}{Environment.NewLine
-                    }Base Title ID: {nacp.BaseTitleID}";
+                    }Base Title ID: {nacp.BaseTitleID}{Environment.NewLine}";
             }
 
             txtGameInfo.Text += AddNCAMetaInfo();
@@ -2087,7 +2088,11 @@ namespace SwitchSDTool
             if (_tickets.TryGetValue((string) tvGames.SelectedNode.Tag, out var ticket) && ticket.Anonymize())
                 titlekey = $@"Title Key: {ticket.TitleKey.ToHexString()}{Environment.NewLine}";
 
-            var output = $@"{Environment.NewLine}{Environment.NewLine}";
+            var releasedate = "";
+            if (_titleReleaseDate.TryGetValue((string) tvGames.SelectedNode.Tag, out var releastDateTime))
+                releasedate = $@"Release Date: {releastDateTime}{Environment.NewLine}";
+
+            var output = $@"{releasedate}{Environment.NewLine}";
             var cnmt = _cnmtFiles[(string) tvGames.SelectedNode.Tag];
             output += $@"Title ID: {tvGames.SelectedNode.Tag}{Environment.NewLine}";
             output += titlekey;
