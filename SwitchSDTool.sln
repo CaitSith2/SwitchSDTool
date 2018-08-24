@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27703.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwitchSDTool", "SwitchSDTool\SwitchSDTool.csproj", "{672895BC-DB06-423B-8E22-F59059486D2D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libhac", "..\libhac\libhac\libhac.csproj", "{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{672895BC-DB06-423B-8E22-F59059486D2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{672895BC-DB06-423B-8E22-F59059486D2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{672895BC-DB06-423B-8E22-F59059486D2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -70,8 +70,9 @@
   <PropertyGroup>
     <TargetZone>LocalIntranet</TargetZone>
   </PropertyGroup>
+  <PropertyGroup />
   <PropertyGroup>
-    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -92,7 +93,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AesCTR.cs" />
-    <Compile Include="CNMT.cs" />
     <Compile Include="Configuration.cs" />
     <Compile Include="ControlNACP.cs" />
     <Compile Include="Form1.cs">
@@ -143,18 +143,6 @@
     <Content Include="readme.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="Tools\hactool.exe">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\libmbedcrypto.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\libmbedtls.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\libmbedx509.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <None Include="Ultra_microSDXC_UHS-I_A1_front.png" />
     <Content Include="ultra_microsdxc_uhs_i_a1_front_m8e_icon.ico" />
   </ItemGroup>
@@ -169,6 +157,12 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\libhac\libhac\libhac.csproj">
+      <Project>{e156d7b4-dced-47b5-a0cc-40811b2fef0d}</Project>
+      <Name>libhac</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
