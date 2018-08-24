@@ -356,13 +356,6 @@ namespace SwitchSDTool
                 txtRSAKEK.Enabled = false;
             }
 
-            if (!CheckNetFramework())
-            {
-                UpdateStatus("ERROR: Microsoft .NET Framework 4.7.1 or later is required. Please install it.");
-                splitContainerTop.Panel1.Enabled = false;
-                tcTabs.Enabled = false;
-            }
-
             var generatedKeys = _validKeySizes.Keys.Where(x => x.EndsWith("_")).ToArray();
             foreach (var key in generatedKeys)
             {
@@ -2044,16 +2037,6 @@ namespace SwitchSDTool
         private void tvGames_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
         {
             btnPackSelectedNSP_Click(null, null);
-        }
-
-        private static bool CheckNetFramework()
-        {
-            using (var ndpKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32).OpenSubKey("SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\\"))
-            {
-                if (ndpKey == null) return false;
-                var releaseKey = Convert.ToInt32(ndpKey.GetValue("Release"));
-                return releaseKey >= 461308;
-            }
         }
 
         private void tvGames_MouseHover(object sender, EventArgs e)
