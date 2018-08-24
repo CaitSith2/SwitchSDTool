@@ -15,6 +15,8 @@ using CTR;
 using Microsoft.Win32;
 using SwitchSDTool.Properties;
 using libhac;
+using libhac.Savefile;
+using libhac.Streams;
 using Application = System.Windows.Forms.Application;
 
 namespace SwitchSDTool
@@ -423,129 +425,106 @@ namespace SwitchSDTool
             }
 
             UpdateStatus("Dumping Tickets");
-
-            var size = 0x4000;
-            var data = new byte[size];
             var count = _tickets.Count;
 
-            var commonTicketLength = new FileInfo(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1")).Length;
-            InitializeProgress((ulong)(commonTicketLength +
-                                       new FileInfo(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e2")).Length), true);
-            using (var ticketdata = File.OpenRead(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1")))
+            using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1"), FileMode.Open, FileAccess.Read))
             {
-                long ticketstart = -1;
-                
-                for (var i = 0; i < ticketdata.Length && ticketstart < 0; i += 0x100)
+                var commonTickets = new Savefile(stream);
+                var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
+                var titleIDs = new List<string>();
+                while (true)
                 {
-                    if (i % size == 0)
-                    {
-                        SetProgress((ulong)i);
-                        ticketdata.Read(data, 0, size);
-                    }
-                    if (data[0 + (i % size)] != 4 || data[1 + (i % size)] != 0 || data[2 + (i % size)] != 1 || data[3 + (i % size)] != 0) continue;
-                    ticketstart = i;
+                    var titleID = ticketList.ReadUInt64();
+                    if (titleID == ulong.MaxValue) break;
+                    titleIDs.Add($"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString());
+                    ticketList.BaseStream.Position += 0x18;
                 }
 
-
-                if (ticketstart >= 0)
+                var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
+                foreach(var tid in titleIDs)
                 {
-                    ticketdata.Seek(ticketstart, SeekOrigin.Begin);
-
-                    for (var i = 0; i < ticketdata.Length - ticketstart; i += 0x400)
-                    {
-                        if (i % size == 0)
-                        {
-                            SetProgress((ulong) (ticketstart + i));
-                            ticketdata.Read(data, 0, size);
-                        }
-                        if (data[0 + (i % size)] != 4 || data[1 + (i % size)] != 0 || data[2 + (i % size)] != 1 || data[3 + (i % size)] != 0) continue;
-
-                        try
-                        {
-                            var ticket = new Ticket(data.Skip(i % size).Take(0x400).ToArray());
-                            _tickets[ticket.TitleID.ToHexString()] = ticket;
-                        }
-                        catch
-                        {
-                            //
-                        }
-
-                        
-                    }
+                    _tickets[tid] = new Ticket(tickets.ReadBytes(0x400));
                 }
+
+                /*var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
+                var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
+                ulong titleID;
+                do
+                {
+                    titleID = ticketList.ReadUInt64();
+                    if (titleID == ulong.MaxValue) continue;
+                    ticketList.BaseStream.Position += 0x18;
+                    _tickets[$"{titleID:x16}"] = new Ticket(tickets.ReadBytes(0x400));
+                } while (titleID != ulong.MaxValue);*/
             }
 
-            using (var ticketdata = File.OpenRead(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e2")))
+            using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e2"), FileMode.Open, FileAccess.Read))
             {
-                long ticketstart = -1;
-                for (var i = 0; i < ticketdata.Length && ticketstart < 0; i += 0x100)
+                var personalTickets = new Savefile(stream);
+                var ticketList = new BinaryReader(personalTickets.OpenFile("/ticket_list.bin"));
+                var titleIDs = new List<string>();
+                while (true)
                 {
-                    if (i % size == 0)
-                    {
-                        SetProgress((ulong)(commonTicketLength + i));
-                        ticketdata.Read(data, 0, size);
-                    }
-                    if (data[0 + (i % size)] != 4 || data[1 + (i % size)] != 0 || data[2 + (i % size)] != 1 || data[3 + (i % size)] != 0) continue;
-                    ticketstart = i;
+                    var titleID = ticketList.ReadUInt64();
+                    if (titleID == ulong.MaxValue) break;
+                    titleIDs.Add($"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString());
+                    ticketList.BaseStream.Position += 0x18;
                 }
 
+                var tickets = new BinaryReader(personalTickets.OpenFile("/ticket.bin"));
                 bool firstTicket = false;
-                if (ticketstart >= 0)
+                foreach (var tid in titleIDs)
                 {
-                    ticketdata.Seek(ticketstart, SeekOrigin.Begin);
+                    var ticket = new Ticket(tickets.ReadBytes(0x400));
+                    var ticketHash = SHA256.Create().ComputeHash(ticket.Data);
 
-                    for (var i = 0; i < ticketdata.Length - ticketstart; i += 0x400)
+                    if (!firstTicket)
                     {
-                        if (i % size == 0)
+                        firstTicket = ticket.Anonymize();
+
+                        for (var j = 1; j < cbRSAKey.Items.Count && !firstTicket; j++)
                         {
-                            SetProgress((ulong)(commonTicketLength + ticketstart + i));
-                            ticketdata.Read(data, 0, size);
-                        }
-                        if (data[0 + (i % size)] != 4 || data[1 + (i % size)] != 0 || data[2 + (i % size)] != 1 || data[3 + (i % size)] != 0) continue;
-
-                        try
-                        {
-                            var ticket = new Ticket(data.Skip(i % size).Take(0x400).ToArray());
-                            if (!firstTicket && !ticket.Anonymize())
-                            {
-                                var rsafound = false;
-                                for (var j = 1; j < cbRSAKey.Items.Count && !rsafound; j++)
-                                {
-                                    cbRSAKey.SelectedIndex = j;
-                                    cbRSAKey_SelectedIndexChanged(null, null);
-                                    rsafound |= ticket.Anonymize();
-                                }
-
-                                if (!rsafound)
-                                {
-                                    UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
-                                    UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
-                                    HideProgress();
-                                    btnLoadRSAKEK.Enabled = true;
-                                    Ticket.RsaD = BigInteger.Zero;
-                                    Ticket.RsaN = BigInteger.Zero;
-                                    Ticket.RsaE = BigInteger.Zero;
-                                    return;
-                                }
-                            }
-
-                            if (_personalTitleIDs.Add(ticket.TitleID.ToHexString())) _ticketsNotInDB++;
-
-                            _tickets[ticket.TitleID.ToHexString()] = ticket;
-                            _personalTickets[SHA256.Create().ComputeHash(data.Skip(i % size).Take(0x2C0).ToArray()).ToHexString()] = ticket;
-                            
-                            firstTicket = true;
-                        }
-                        catch
-                        {
-                            //
+                            cbRSAKey.SelectedIndex = j;
+                            cbRSAKey_SelectedIndexChanged(null, null);
+                            firstTicket |= ticket.Anonymize();
                         }
 
-
+                        if (!firstTicket)
+                        {
+                            UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
+                            UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
+                            btnLoadRSAKEK.Enabled = true;
+                            Ticket.RsaD = BigInteger.Zero;
+                            Ticket.RsaN = BigInteger.Zero;
+                            Ticket.RsaE = BigInteger.Zero;
+                            return;
+                        }
                     }
+
+                    if (_personalTitleIDs.Add(ticket.TitleID.ToHexString())) _ticketsNotInDB++;
+
+                    _tickets[tid] = ticket;
+                    _personalTickets[ticketHash.ToHexString()] = ticket;
+
                 }
             }
-            HideProgress();
+
+            if(File.Exists(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e3")))
+                using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e3"), FileMode.Open, FileAccess.Read))
+                {
+                    var ticketReleaseDates = new Savefile(stream);
+                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("/ticket_list.bin"));
+                    while (true)
+                    {
+                        var titleID = ticketList.ReadUInt64();
+                        if (titleID == ulong.MaxValue) break;
+                        ticketList.BaseStream.Position += 0x18;
+
+                        var utctime = ticketList.ReadUInt64();
+                        _titleReleaseDate[$"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString()] = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(utctime).ToLocalTime();
+                        ticketList.BaseStream.Position += 0xD8;
+                    }
+                }
 
             var dbresult = _databaseTitleNames.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
             UpdateStatus($"Done. {_tickets.Count - count} new tickets dumped. {dbresult}{_tickets.Count} Tickets total.");
