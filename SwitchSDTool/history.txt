@@ -1,5 +1,11 @@
-Version 1.08 - Aug 21, 2018
+Version 1.08 - Aug 26, 2018
 	- personal_keys.txt now only includes keys not yet in the database.
+	- No longer depends on hactool or create temp files while parsing the ncas.
+	- NSPs no longer have *.cnmt.xml. (This file like all of the other xml files and even jpeg files, is 100% derived from the ncas themselves, and is only used for Nintendo's lot check process before final release. (Don't bother asking for the xml files in my tool.))
+	- Read tickets more efficiently
+	- Get the release date AND time of pre-ordered eshop games. 
+	- Title key decryption sped up.
+	- Added means to output common_keys.txt (and a formatted version for use in cdnsp tools to download updates.)
 
 Version 1.07 - Aug 19, 2018
 	- Include history.txt

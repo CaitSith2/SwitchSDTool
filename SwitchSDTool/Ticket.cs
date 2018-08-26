@@ -3,15 +3,102 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Reflection;
 using System.Security.Cryptography;
+using libhac;
 
 namespace SwitchSDTool
 {
     public class Ticket
     {
-        public static BigInteger RsaD;
-        public static BigInteger RsaN;
-        public static BigInteger RsaE;
+        private static BigInteger RsaD;
+        private static BigInteger RsaN;
+        private static BigInteger RsaE;
+
+        private static RSAParameters _params;
+        private static bool _rsaCracked = false;
+
+        private static readonly Dictionary<string, RSAParameters> RsaParameters = new Dictionary<string, RSAParameters>();
+
+        private static readonly MethodInfo RecoverRsaParametersMethod = typeof(Crypto).GetMethod("RecoverRsaParameters", BindingFlags.NonPublic | BindingFlags.Static);
+
+        public static void UpdateRSAKey()
+        {
+            UpdateRSAKey(0, 0, 0);
+        }
+
+        public static void UpdateRSAKey(BigInteger D, BigInteger N, BigInteger E)
+        {
+            try
+            {
+                RsaE = E;
+                RsaD = D;
+                RsaN = N;
+
+                if (RsaE != 0x10001)
+                {
+                    ValidRSAKey = false;
+                    _rsaCracked = false;
+                    return;
+                }
+                
+
+                var key = $"{D.ToByteArray().ToHexString()}{N.ToByteArray().ToHexString()}";
+
+                if (RsaParameters.TryGetValue(key, out _params))
+                {
+                    ValidRSAKey = true;
+                    _rsaCracked = true;
+                }
+                else if (RecoverRsaParametersMethod != null)
+                {
+                    _params = (RSAParameters)RecoverRsaParametersMethod.Invoke(null, new object[] {N, E, D});
+                    if (TestRsaKey())
+                    {
+                        RsaParameters[key] = _params;
+                        _rsaCracked = true;
+                        ValidRSAKey = true;
+                    }
+                    else
+                    {
+                        _rsaCracked = false;;
+                        ValidRSAKey = TestPublicPrivateKeySet();
+                    }
+                }
+                else
+                {
+                    _rsaCracked = false; ;
+                    ValidRSAKey = TestPublicPrivateKeySet();
+                }
+            }
+            catch
+            {
+                _rsaCracked = false; ;
+                ValidRSAKey = TestPublicPrivateKeySet();
+            }
+        }
+
+        private static bool TestRsaKey()
+        {
+            var rsa = new RSACryptoServiceProvider();
+            rsa.ImportParameters(_params);
+
+            var test = new byte[] { 12, 34, 56, 78 };
+            byte[] testEnc = rsa.Encrypt(test, false);
+            byte[] testDec = rsa.Decrypt(testEnc, false);
+
+            return libhac.Util.ArraysEqual(test, testDec);
+        }
+
+        private static bool TestPublicPrivateKeySet()
+        {
+            BigInteger test = 0xCAFEBABE;
+            var encrypted = BigInteger.ModPow(test, RsaD, RsaN);
+            var decrypted = BigInteger.ModPow(encrypted, RsaE, RsaN);
+            return test == decrypted;
+        }
+
+        public static bool ValidRSAKey { get; private set; }
 
         private static readonly byte[] CommonData = 
             ("04000100FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" +            //000-03F
@@ -121,6 +208,7 @@ namespace SwitchSDTool
             Common = true;
         }
 
+        
         public bool Anonymize()
         {
             AnonymizeError = null;
@@ -132,10 +220,38 @@ namespace SwitchSDTool
                 return true;
             }
 
-            if (RsaE != 0x10001)
+            if (!ValidRSAKey)
             {
                 AnonymizeError = "Cannot pack without RSA Key.";
                 return false;
+            }
+
+            if (_rsaCracked)
+            {
+                try
+                {
+                    var pticket = new List<byte>(CommonData);
+                    pticket.InsertRange(0x180, Crypto.DecryptTitleKey(Data.Skip(0x180).Take(0x100).ToArray(), _params).Take(16));
+                    pticket.InsertRange(0x283, Data.Skip(0x2AC).Take(4));
+                    pticket.InsertRange(0x2A0, Data.Skip(0x2A0).Take(16));
+
+                    if (pticket.Count != 0x2C0)
+                    {
+                        AnonymizeError = "Error: Ticket not expected size";
+                        return false;
+                    }
+
+                    Data = pticket.ToArray();
+                    TitleKeyDatabase[RightsID.ToHexString()] = TitleKey.ToHexString();
+
+
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    AnonymizeError = "ERROR: Extracted RSA Key is not for this ticket.";
+                    //return false;
+                }
             }
 
             titlekey.Reverse();

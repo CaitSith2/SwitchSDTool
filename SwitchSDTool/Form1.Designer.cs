@@ -6,6 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using libhac;
+using SwitchSDTool.Properties;
 
 namespace SwitchSDTool
 {
@@ -74,6 +76,8 @@ namespace SwitchSDTool
             this.listStatus = new System.Windows.Forms.ListBox();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.splitContainerTop = new System.Windows.Forms.SplitContainer();
+            this.button3 = new System.Windows.Forms.Button();
+            this.button2 = new System.Windows.Forms.Button();
             this.btnGetTitleKeys = new System.Windows.Forms.Button();
             this.btnGetTitleKeyDB = new System.Windows.Forms.Button();
             this.txtTitleKeyURL = new System.Windows.Forms.TextBox();
@@ -106,6 +110,7 @@ namespace SwitchSDTool
             this.ilGamesLarge = new System.Windows.Forms.ImageList(this.components);
             this.ilGamesExtraLarge = new System.Windows.Forms.ImageList(this.components);
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.btnExtractCommonKeys = new System.Windows.Forms.Button();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -309,6 +314,9 @@ namespace SwitchSDTool
             // 
             // splitContainerTop.Panel1
             // 
+            this.splitContainerTop.Panel1.Controls.Add(this.btnExtractCommonKeys);
+            this.splitContainerTop.Panel1.Controls.Add(this.button3);
+            this.splitContainerTop.Panel1.Controls.Add(this.button2);
             this.splitContainerTop.Panel1.Controls.Add(this.btnGetTitleKeys);
             this.splitContainerTop.Panel1.Controls.Add(this.btnGetTitleKeyDB);
             this.splitContainerTop.Panel1.Controls.Add(this.txtTitleKeyURL);
@@ -335,9 +343,31 @@ namespace SwitchSDTool
             this.splitContainerTop.SplitterDistance = 549;
             this.splitContainerTop.TabIndex = 14;
             // 
+            // button3
+            // 
+            this.button3.Location = new System.Drawing.Point(366, 166);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(82, 20);
+            this.button3.TabIndex = 20;
+            this.button3.Text = "button3";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Visible = false;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
+            // 
+            // button2
+            // 
+            this.button2.Location = new System.Drawing.Point(459, 167);
+            this.button2.Name = "button2";
+            this.button2.Size = new System.Drawing.Size(82, 20);
+            this.button2.TabIndex = 19;
+            this.button2.Text = "button2";
+            this.button2.UseVisualStyleBackColor = true;
+            this.button2.Visible = false;
+            this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
             // btnGetTitleKeys
             // 
-            this.btnGetTitleKeys.Location = new System.Drawing.Point(3, 166);
+            this.btnGetTitleKeys.Location = new System.Drawing.Point(151, 166);
             this.btnGetTitleKeys.Name = "btnGetTitleKeys";
             this.btnGetTitleKeys.Size = new System.Drawing.Size(141, 31);
             this.btnGetTitleKeys.TabIndex = 18;
@@ -374,6 +404,7 @@ namespace SwitchSDTool
             // 
             // cbRSAKey
             // 
+            this.cbRSAKey.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cbRSAKey.FormattingEnabled = true;
             this.cbRSAKey.Items.AddRange(new object[] {
             "----- Select Serial Number -----"});
@@ -382,9 +413,7 @@ namespace SwitchSDTool
             this.cbRSAKey.Size = new System.Drawing.Size(266, 21);
             this.cbRSAKey.Sorted = true;
             this.cbRSAKey.TabIndex = 14;
-            this.cbRSAKey.Text = "----- Select Serial Number -----";
             this.cbRSAKey.SelectedIndexChanged += new System.EventHandler(this.cbRSAKey_SelectedIndexChanged);
-            this.cbRSAKey.TextChanged += new System.EventHandler(this.cbRSAKey_TextChanged);
             // 
             // btnParseNCA
             // 
@@ -721,6 +750,16 @@ namespace SwitchSDTool
             this.ilGamesExtraLarge.ImageSize = new System.Drawing.Size(256, 256);
             this.ilGamesExtraLarge.TransparentColor = System.Drawing.Color.Transparent;
             // 
+            // btnExtractCommonKeys
+            // 
+            this.btnExtractCommonKeys.Location = new System.Drawing.Point(4, 167);
+            this.btnExtractCommonKeys.Name = "btnExtractCommonKeys";
+            this.btnExtractCommonKeys.Size = new System.Drawing.Size(141, 31);
+            this.btnExtractCommonKeys.TabIndex = 21;
+            this.btnExtractCommonKeys.Text = "Extract Common_keys.txt";
+            this.btnExtractCommonKeys.UseVisualStyleBackColor = true;
+            this.btnExtractCommonKeys.Click += new System.EventHandler(this.btnExtractCommonKeys_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -819,6 +858,9 @@ namespace SwitchSDTool
         private Label label1;
         private Button btnGetTitleKeyDB;
         private Button btnGetTitleKeys;
+        private Button button2;
+        private Button button3;
+        private Button btnExtractCommonKeys;
     }
 }
 

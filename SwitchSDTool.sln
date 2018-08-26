@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwitchSDTool", "SwitchSDToo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libhac", "..\libhac\libhac\libhac.csproj", "{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libhac.Nand", "..\libhac\libhac.Nand\libhac.Nand.csproj", "{A647DD91-AC76-4703-BA93-6CC89139AA1D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NSPVerify", "NSPVerify\NSPVerify.csproj", "{97CDB25B-7325-4D06-ABC4-752ACB0B99DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E156D7B4-DCED-47B5-A0CC-40811B2FEF0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A647DD91-AC76-4703-BA93-6CC89139AA1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A647DD91-AC76-4703-BA93-6CC89139AA1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A647DD91-AC76-4703-BA93-6CC89139AA1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A647DD91-AC76-4703-BA93-6CC89139AA1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97CDB25B-7325-4D06-ABC4-752ACB0B99DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97CDB25B-7325-4D06-ABC4-752ACB0B99DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97CDB25B-7325-4D06-ABC4-752ACB0B99DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97CDB25B-7325-4D06-ABC4-752ACB0B99DF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
