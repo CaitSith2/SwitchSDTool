@@ -8,6 +8,7 @@ using System.Linq;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Windows.Forms;
+using libhac;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -16,7 +17,6 @@ namespace SwitchSDTool
     public class ConfigurationData
     {
         public string SDpath = "SD\\Nintendo\\Contents\\registered";
-        public string SDPrivateFile = "SD\\Nintendo\\Contents\\private";
         public string Decryptionpath = "Decrypted";
 
         // ReSharper disable once InconsistentNaming
@@ -120,21 +120,6 @@ namespace SwitchSDTool
             catch
             {
                 //
-            }
-        }
-
-        public static string[] GetSDDirectories
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(Data.SDpath) || !Directory.Exists(Data.SDpath))
-                    return new string[0];
-
-                var root = Directory.GetDirectories(Data.SDpath);
-                var directories = new List<string>();
-                foreach (var r in root)
-                    directories.AddRange(Directory.GetDirectories(r));
-                return directories.OrderBy(x => x).ToArray();
             }
         }
 

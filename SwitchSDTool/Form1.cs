@@ -12,11 +12,15 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using CTR;
+using DiscUtils.Fat;
+using DiscUtils.Streams;
 using Microsoft.Win32;
 using SwitchSDTool.Properties;
 using libhac;
+using libhac.Nand;
 using libhac.Savefile;
 using libhac.Streams;
+using libhac.XTSSharp;
 using Application = System.Windows.Forms.Application;
 
 namespace SwitchSDTool
@@ -26,13 +30,17 @@ namespace SwitchSDTool
         private byte[] _sdKey;
 
         private readonly Dictionary<string, Ticket> _tickets = new Dictionary<string, Ticket>();
-        private readonly Dictionary<string, Ticket> _personalTickets = new Dictionary<string, Ticket>();
+        private readonly Dictionary<string, string> _commonTickets = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _personalTickets = new Dictionary<string, string>();
         private readonly Dictionary<string, Cnmt> _cnmtFiles = new Dictionary<string, Cnmt>();
         private readonly Dictionary<string, CnmtContentEntry> _cnmtNcaFiles = new Dictionary<string, CnmtContentEntry>();
         private readonly Dictionary<string, string> _titleNames = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _databaseTitleNames = new Dictionary<string, string>();
         private readonly Dictionary<int, ControlNACP> _controlNACP = new Dictionary<int, ControlNACP>();
         private readonly Dictionary<string, DateTime> _titleReleaseDate = new Dictionary<string, DateTime>();
+
+        private IFileSystem _sdFileSystem;
+        private IFileSystem _systemNandFileSystem;
 
         private readonly Keyset _keyset = new Keyset();
 
@@ -60,38 +68,31 @@ namespace SwitchSDTool
             btnFindSDKey.Enabled = true;
 
             var split = fbdSDCard.SelectedPath.PathSplit();
-            var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents",
-                "registered");
-            var baseFolder = Path.Combine(fbdSDCard.SelectedPath, "Nintendo", "Contents", "registered");
-            var nandRootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar,
-                "Contents", "registered");
-            var nandBaseFolder = Path.Combine(fbdSDCard.SelectedPath, "Contents", "registered");
+            var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents");
+            var baseFolder = Path.Combine(fbdSDCard.SelectedPath, "Nintendo", "Contents");
+            var nandRootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Contents");
+            var nandBaseFolder = Path.Combine(fbdSDCard.SelectedPath, "Contents");
             if (Directory.Exists(nandRootFolder))
             {
                 Configuration.Data.SDpath = nandRootFolder;
-                Configuration.Data.SDPrivateFile = null;
             }
             else if (Directory.Exists(nandBaseFolder))
             {
                 Configuration.Data.SDpath = nandBaseFolder;
-                Configuration.Data.SDPrivateFile = null;
             }
             else if (Directory.Exists(rootFolder))
             {
                 Configuration.Data.SDpath = rootFolder;
-                Configuration.Data.SDPrivateFile = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents", "private");
             }
             else if (Directory.Exists(baseFolder))
             {
                 Configuration.Data.SDpath = baseFolder;
-                Configuration.Data.SDPrivateFile = Path.Combine(fbdSDCard.SelectedPath, "Nintendo", "Contents", "private");
             }
             else
             {
                 Configuration.Data.SDpath = fbdSDCard.SelectedPath;
-                Configuration.Data.SDPrivateFile = Path.Combine(Path.GetDirectoryName(fbdSDCard.SelectedPath) ?? String.Empty, "private");
             }
-
+            _sdFileSystem = new FileSystem(Configuration.Data.SDpath);
         }
 
         private void btdDecryption_Click(object sender, EventArgs e)
@@ -106,24 +107,16 @@ namespace SwitchSDTool
 
         private void btnFindSDKey_Click(object sender, EventArgs e)
         {
-            if (Configuration.Data.SystemPath == null) return;
-            if (Configuration.Data.SDPrivateFile == null)
+            if (!_sdFileSystem.FileExists("private"))
             {
-                if (Directory.Exists(Configuration.Data.SDpath))
-                {
-                    _sdKey = null;
-                    UpdateStatus(@"User NAND Partition mounted");
-                    btnFindSDKey.Enabled = false;
-                }
+                _sdKey = null;
+                UpdateStatus(@"User NAND Partition mounted");
+                btnFindSDKey.Enabled = false;
                 return;
             }
-            var sdkeyfile = Path.Combine(Configuration.Data.SystemPath, "save", "8000000000000043");
-            if (!File.Exists(Configuration.Data.SDPrivateFile))
-            {
-                UpdateStatus("Nintendo Switch SD Card not present");
-                return;
-            }
-            if (!File.Exists(sdkeyfile))
+
+            var sdkeyfile = Path.Combine("save", "8000000000000043");
+            if (!_systemNandFileSystem.FileExists(sdkeyfile))
             {
                 UpdateStatus("Nintendo Switch System NAND Drive not present");
                 return;
@@ -131,8 +124,17 @@ namespace SwitchSDTool
 
             try
             {
-                var privateBytes = File.ReadAllBytes(Configuration.Data.SDPrivateFile);
-                var sdBytes = File.ReadAllBytes(sdkeyfile);
+                var privateBytes = new byte[16];
+                var sdBytes = new byte[512];
+
+                using (var sr = new BinaryReader(_sdFileSystem.OpenFile("private", FileMode.Open, FileAccess.Read)))
+                    privateBytes = sr.ReadBytes(16);
+
+                var sdkeydata = _systemNandFileSystem.OpenFile(sdkeyfile, FileMode.Open, FileAccess.Read);
+                //var sdkeysave = new Savefile(sdkeydata);
+                //using (var sr = new BinaryReader(sdkeysave.OpenFile("private")))
+                using (var sr = new BinaryReader(sdkeydata))
+                    sdBytes = sr.ReadBytes((int) sr.BaseStream.Length);
 
                 for (var i = 0; i < sdBytes.Length - 16; i++)
                 {
@@ -174,9 +176,8 @@ namespace SwitchSDTool
             _sdKey = null;
 
             var split = fbdSDCard.SelectedPath.PathSplit();
-            var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "save", "8000000000000043");
 
-            if (File.Exists(rootFolder))
+            if (new FileSystem(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar).DirectoryExists("save"))
                 Configuration.Data.SystemPath = split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar;
             else
                 Configuration.Data.SystemPath = fbdSDCard.SelectedPath;
@@ -250,23 +251,12 @@ namespace SwitchSDTool
                 Array.Copy(data, 0x30, rsa_N, 0, rsa_N.Length - 1);
                 Array.Copy(data, 0x2C, rsa_E, 0, rsa_E.Length);
 
-                
-
-                BigInteger test = 0xCAFEBABE;
-                var d = new BigInteger(rsa_D);
-                var n = new BigInteger(rsa_N);
-                var be = new BigInteger(rsa_E);
-
-                var encrypted = BigInteger.ModPow(test, d, n);
-                var decrypted = BigInteger.ModPow(encrypted, be, n);
-                if (decrypted != test)
+                Ticket.UpdateRSAKey(new BigInteger(rsa_D), new BigInteger(rsa_N), new BigInteger(rsa_E));
+                if (!Ticket.ValidRSAKey)
                 {
                     UpdateStatus(@"PRODINFO.bin corrupted or not decrypted correctly - RSA Key failed to decrypt correctly.");
                     return;
                 }
-                Ticket.RsaN = n;
-                Ticket.RsaD = d;
-                Ticket.RsaE = be;
 
                 data = new byte[0x18];
                 prodinfo.Seek(0x250, SeekOrigin.Begin);
@@ -309,7 +299,7 @@ namespace SwitchSDTool
                 return;
             }
 
-            var message = messageArgs.Aggregate(string.Empty, (current, m) => current + m);
+            var message = messageArgs.Aggregate(String.Empty, (current, m) => current + m);
             _messageBox[listStatus.Items.Count - 1] = message;
 
             Application.DoEvents();
@@ -328,8 +318,8 @@ namespace SwitchSDTool
 
             _messageBox.TryGetValue(listStatus.Items.Count - 1, out var message);
             if (message == null)
-                message = string.Empty;
-            message += messageArgs.Aggregate(string.Empty, (current, m) => current + m);
+                message = String.Empty;
+            message += messageArgs.Aggregate(String.Empty, (current, m) => current + m);
             _messageBox[listStatus.Items.Count - 1] = message;
 
             Application.DoEvents();
@@ -337,6 +327,7 @@ namespace SwitchSDTool
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            Directory.CreateDirectory("Tools");
             lblStatus.Text = "";
             tsProgressText.Text = "";
             listStatus.TopIndex = listStatus.Items.Count - 1;
@@ -374,149 +365,134 @@ namespace SwitchSDTool
                     keysToRemove.Add(serial);
                     continue;
                 }
-                var N = new BigInteger(split[0].ToByte());
-                var D = new BigInteger(split[1].ToByte());
-                var E = new BigInteger(split[2].ToByte());
-                BigInteger test = 0xCAFEBABE;
-                var encrypted = BigInteger.ModPow(test, D, N);
-                var decrypted = BigInteger.ModPow(encrypted, E, N);
-                if (decrypted != test || E != 0x10001)
-                {
-                    keysToRemove.Add(serial);
-                }
-                else
-                {
+
+                Ticket.UpdateRSAKey(new BigInteger(split[1].ToByte()), new BigInteger(split[0].ToByte()), new BigInteger(split[2].ToByte()));
+                if (Ticket.ValidRSAKey)
                     cbRSAKey.Items.Add(serial);
-                }
+                else
+                    keysToRemove.Add(serial);
             }
+            cbRSAKey.SelectedIndex = 0;
 
             foreach (var serial in keysToRemove)
                 Configuration.Data.RSAKeys.Remove(serial);
 
-            txtTitleKeyURL.Text = Configuration.Data.TitleKeyDataBaseURL ?? string.Empty;
+            txtTitleKeyURL.Text = Configuration.Data.TitleKeyDataBaseURL ?? String.Empty;
+
+            _sdFileSystem = new FileSystem(Configuration.Data.SDpath ?? "");
+            _systemNandFileSystem = new FileSystem(Configuration.Data.SystemPath ?? "");
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            if (Ticket.RsaE != 0x10001)
+            if (!Ticket.ValidRSAKey)
             {
                 btnLoadRSAKEK_Click(null, null);
-                if (Ticket.RsaE != 0x10001 && cbRSAKey.Items.Count < 2)
+                if (!Ticket.ValidRSAKey && cbRSAKey.Items.Count < 2)
                 {
                     UpdateStatus("Cannot Dump tickets without RSA KEK");
                     return;
                 }
             }
 
-            if (!File.Exists(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1")) ||
-                !File.Exists(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e2")))
-            {
-                UpdateStatus("Nintendo Switch NAND not mounted.");
-                return;
-            }
-
             UpdateStatus("Dumping Tickets");
             var count = _tickets.Count;
 
-            using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e1"), FileMode.Open, FileAccess.Read))
-            {
-                var commonTickets = new Savefile(stream);
-                var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
-                var titleIDs = new List<string>();
-                while (true)
+            if(_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e1")))
+                using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e1"), FileMode.Open, FileAccess.Read))
                 {
+                    var commonTickets = new Savefile(stream);
+                    var ticketList = new BinaryReader(commonTickets.OpenFile("ticket_list.bin"));
+                    var tickets = new BinaryReader(commonTickets.OpenFile("ticket.bin"));
                     var titleID = ticketList.ReadUInt64();
-                    if (titleID == ulong.MaxValue) break;
-                    titleIDs.Add($"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString());
-                    ticketList.BaseStream.Position += 0x18;
-                }
-
-                var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
-                foreach(var tid in titleIDs)
-                {
-                    _tickets[tid] = new Ticket(tickets.ReadBytes(0x400));
-                }
-
-                /*var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
-                var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
-                ulong titleID;
-                do
-                {
-                    titleID = ticketList.ReadUInt64();
-                    if (titleID == ulong.MaxValue) continue;
-                    ticketList.BaseStream.Position += 0x18;
-                    _tickets[$"{titleID:x16}"] = new Ticket(tickets.ReadBytes(0x400));
-                } while (titleID != ulong.MaxValue);*/
-            }
-
-            using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e2"), FileMode.Open, FileAccess.Read))
-            {
-                var personalTickets = new Savefile(stream);
-                var ticketList = new BinaryReader(personalTickets.OpenFile("/ticket_list.bin"));
-                var titleIDs = new List<string>();
-                while (true)
-                {
-                    var titleID = ticketList.ReadUInt64();
-                    if (titleID == ulong.MaxValue) break;
-                    titleIDs.Add($"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString());
-                    ticketList.BaseStream.Position += 0x18;
-                }
-
-                var tickets = new BinaryReader(personalTickets.OpenFile("/ticket.bin"));
-                bool firstTicket = false;
-                foreach (var tid in titleIDs)
-                {
-                    var ticket = new Ticket(tickets.ReadBytes(0x400));
-                    var ticketHash = SHA256.Create().ComputeHash(ticket.Data);
-
-                    if (!firstTicket)
+                    while(titleID != UInt64.MaxValue)
                     {
-                        firstTicket = ticket.Anonymize();
+                        ticketList.BaseStream.Position += 0x18;
+                        var ticket = new Ticket(tickets.ReadBytes(0x400));
+                        _tickets[ticket.TitleID.ToHexString()] = ticket;
+                        titleID = ticketList.ReadUInt64();
+                        _commonTickets[ticket.RightsID.ToHexString()] = ticket.TitleKey.ToHexString();
+                    }
+                }
 
-                        for (var j = 1; j < cbRSAKey.Items.Count && !firstTicket; j++)
-                        {
-                            cbRSAKey.SelectedIndex = j;
-                            cbRSAKey_SelectedIndexChanged(null, null);
-                            firstTicket |= ticket.Anonymize();
-                        }
 
-                        if (!firstTicket)
-                        {
-                            UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
-                            UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
-                            btnLoadRSAKEK.Enabled = true;
-                            Ticket.RsaD = BigInteger.Zero;
-                            Ticket.RsaN = BigInteger.Zero;
-                            Ticket.RsaE = BigInteger.Zero;
-                            return;
-                        }
+            if (_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e2")))
+                using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e2"), FileMode.Open, FileAccess.Read))
+                {
+                    var personalTickets = new Savefile(stream);
+                    var ticketList = new BinaryReader(personalTickets.OpenFile("ticket_list.bin"));
+                    var tickets = new BinaryReader(personalTickets.OpenFile("ticket.bin"));
+
+                    var firstTicket = false;
+                    var titleID = ticketList.ReadUInt64();
+                    var personalcount = 0UL;
+                    while (titleID != ulong.MaxValue)
+                    {
+                        ticketList.BaseStream.Position += 0x18;
+                        titleID = ticketList.ReadUInt64();
+                        personalcount++;
                     }
 
-                    if (_personalTitleIDs.Add(ticket.TitleID.ToHexString())) _ticketsNotInDB++;
+                    ticketList.BaseStream.Position = 0;
+                    ticketList = new BinaryReader(new MemoryStream(ticketList.ReadBytes(0x20 * (int)(personalcount + 1))));
+                    tickets = new BinaryReader(new MemoryStream(tickets.ReadBytes(0x400 * (int) personalcount)));
 
-                    _tickets[tid] = ticket;
-                    _personalTickets[ticketHash.ToHexString()] = ticket;
+                    
+                    titleID = ticketList.ReadUInt64();
+                    InitializeProgress(personalcount);
 
+                    while (titleID != ulong.MaxValue)
+                    {
+                        UpdateProgress(1);
+                        ticketList.BaseStream.Position += 0x18;
+                        var ticket = new Ticket(tickets.ReadBytes(0x400));
+
+                        firstTicket = ticket.Anonymize();
+                        if (!firstTicket)
+                        {
+                            for (var j = 1; j < cbRSAKey.Items.Count && !firstTicket; j++)
+                            {
+                                cbRSAKey.SelectedIndex = j;
+                                firstTicket |= ticket.Anonymize();
+                            }
+
+                            if (!firstTicket)
+                            {
+                                UpdateStatus($"Done. {_tickets.Count} Tickets dumped");
+                                UpdateStatus($"Cannot extract personal tickets - {ticket.AnonymizeError}");
+                                btnLoadRSAKEK.Enabled = true;
+                                return;
+                            }
+                        }
+
+                        if (_personalTitleIDs.Add(ticket.TitleID.ToHexString())) _ticketsNotInDB++;
+
+                        _tickets[ticket.TitleID.ToHexString()] = ticket;
+                        _personalTickets[ticket.RightsID.ToHexString()] = ticket.TitleKey.ToHexString();
+                        titleID = ticketList.ReadUInt64();
+                    }
                 }
-            }
 
-            if(File.Exists(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e3")))
-                using (var stream = File.Open(Path.Combine(Configuration.Data.SystemPath, "save", "80000000000000e3"), FileMode.Open, FileAccess.Read))
+            if (_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e3")))
+                using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e3"), FileMode.Open, FileAccess.Read))
                 {
                     var ticketReleaseDates = new Savefile(stream);
-                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("/ticket_list.bin"));
-                    while (true)
+                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("ticket_list.bin"));
+                    var titleID = ticketList.ReadUInt64();
+                    while (titleID != UInt64.MaxValue)
                     {
-                        var titleID = ticketList.ReadUInt64();
-                        if (titleID == ulong.MaxValue) break;
                         ticketList.BaseStream.Position += 0x18;
 
                         var utctime = ticketList.ReadUInt64();
-                        _titleReleaseDate[$"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString()] = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(utctime).ToLocalTime();
+                        _titleReleaseDate[$"{titleID:x16}".ToByte().Reverse().ToArray().ToHexString()] = 
+                            new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(utctime).ToLocalTime();
+
                         ticketList.BaseStream.Position += 0xD8;
+                        titleID = ticketList.ReadUInt64();
                     }
                 }
 
+            HideProgress();
             var dbresult = _databaseTitleNames.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
             UpdateStatus($"Done. {_tickets.Count - count} new tickets dumped. {dbresult}{_tickets.Count} Tickets total.");
         }
@@ -582,8 +558,8 @@ namespace SwitchSDTool
             var keys = new Dictionary<string, byte[]>();
             using (var sr = new StreamReader(new FileStream(filename, FileMode.Open)))
             {
-                var keyname = string.Empty;
-                var keyvalue = string.Empty;
+                var keyname = String.Empty;
+                var keyvalue = String.Empty;
                 while (!sr.EndOfStream)
                 {
                     var line = sr.ReadLine();
@@ -591,7 +567,7 @@ namespace SwitchSDTool
                     var split = line.Split(new[] {",", "="}, StringSplitOptions.None).Select(x => x.ToLowerInvariant().Trim()).ToArray();
                     switch (split.Length)
                     {
-                        case 1 when keyname == string.Empty:
+                        case 1 when keyname == String.Empty:
                             continue;
                         case 1:
                             keyvalue += Regex.Replace(split[0], @"\s+", "");
@@ -635,7 +611,7 @@ namespace SwitchSDTool
             if (!Configuration.VerifyETicketRSAKEK() && keys.TryGetValue("eticket_rsa_kek", out var rsaKeyData))
                 txtRSAKEK.Text = rsaKeyData.ToHexString();
 
-            var keysText = string.Empty;
+            var keysText = String.Empty;
             foreach (var kvp in keys)
             {
                 keysText += $@"{kvp.Key}={kvp.Value.ToHexString()}{Environment.NewLine}";
@@ -704,30 +680,38 @@ namespace SwitchSDTool
             return false;
         }
 
+        public static string[] GetSDDirectories(IFileSystem fs)
+        {
+            try
+            {
+                return fs.GetFileSystemEntries("", "*.nca", SearchOption.AllDirectories);
+            }
+            catch
+            {
+                return new string[0];
+            }
+        }
+
         private void btnDecryptNCA_Click(object sender, EventArgs e)
         {
-            if (!CheckKeys()) return;
+            if (!CheckKeys())
+            {
+                UpdateStatus("Cannot proceed without valid keys.");
+                return;
+            }
             if (_sdKey == null)
             {
                 btnFindSDKey_Click(null, null);
+                CheckKeys();
+                
                 if (_sdKey == null)
-                {
                     UpdateStatus("Cannot Decrypt NCAs from SD card without a valid SD Key. Assuming USER Nand with decrypted files is mounted instead.");
-                }
-                else
-                {
-                    if (!CheckKeys())
-                    {
-                        UpdateStatus("Cannot proceed without valid keys.");
-                        return;
-                    }
-                }
             }
 
             if (!Directory.Exists(Configuration.Data.Decryptionpath))
                 Directory.CreateDirectory(Configuration.Data.Decryptionpath);
 
-            var ncaFiles = Configuration.GetSDDirectories;
+            var ncaFiles = GetSDDirectories(_sdFileSystem);
             if (ncaFiles.Length == 0)
             {
                 UpdateStatus("No NCAs present on SD card");
@@ -740,127 +724,65 @@ namespace SwitchSDTool
                 // ReSharper disable once AssignNullToNotNullAttribute
                 var ncafile = $@"{Path.Combine(Configuration.Data.Decryptionpath, Path.GetFileName(nca))}";
                 if (File.Exists(ncafile)) continue;
-
-                var ncaFileParts = Directory.GetFiles(nca).OrderBy(x => x).ToList();
-                if (ncaFileParts.Count == 0)
-                {
-                    UpdateStatus($@"Cannot decrypt {Path.GetFileName(nca)} as the directory is empty - Click me and check message for details.",
-                        $@"Directory ""{nca}"" is empty.");
-                    continue;
-                }
                 var hash = SHA256.Create();
-                if (_sdKey == null)
-                {
-                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Verifying");
-                    
 
-                    InitializeProgress((ulong) ncaFileParts.Sum(x => new FileInfo(x).Length));
-                    try
+                try
+                {
+                    using (var naxfile = OpenSplitNcaStream(nca))
                     {
+                        if (naxfile == null) continue;
+                        using (var ncaData = new Nca(_keyset, naxfile, true))
+                        {
+                            if (ncaData.Header.ContentType != ContentType.Control &&
+                                ncaData.Header.ContentType != ContentType.Meta)
+                                continue;
+                        }
+
+                        UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
+                        InitializeProgress((ulong) naxfile.Length);
+
+                        naxfile.Position = 0;
+
                         using (var sw = new BinaryWriter(new FileStream(ncafile, FileMode.Create)))
                         {
-                            foreach (var part in ncaFileParts)
+                            using (var sr = new BinaryReader(naxfile))
                             {
-                                using (var sr = new BinaryReader(new FileStream(part, FileMode.Open)))
+                                byte[] bytes;
+                                do
                                 {
-                                    byte[] bytes;
-                                    do
-                                    {
-                                        bytes = sr.ReadBytes(0x100000);
-                                        if (bytes.Length <= 0) continue;
+                                    bytes = sr.ReadBytes(0x100000);
+                                    if (bytes.Length <= 0) continue;
 
-                                        sw.Write(bytes);
-                                        UpdateProgress((ulong) bytes.LongLength);
-                                        hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
-                                    } while (bytes.Length > 0);
-                                }
+                                    sw.Write(bytes);
+                                    UpdateProgress((ulong) bytes.LongLength);
+                                    hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
+                                } while (bytes.Length > 0);
                             }
 
                             hash.TransformFinalBlock(new byte[0], 0, 0);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendStatus(", Failed. Check message box above to see why.",
-                            $@"Failed to Verify ""{Path.GetFileName(nca)}"" due to an exception:{Environment.NewLine}{
-                                    ex.Message
-                                }{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
-                        try
+
+                        var result = nca.ToLowerInvariant()
+                            .Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
+
+                        if (!result)
                         {
+                            AppendStatus(", Verification Failed: File is corrupt.");
+
                             if (File.Exists(ncafile))
                                 File.Delete(ncafile);
-                        }
-                        catch
-                        {
-                            //
+
+                            continue;
                         }
 
-                        continue;
-                    }
-
-
-                    var result = nca.ToLowerInvariant()
-                        .Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
-
-                    if (!result)
-                    {
-                        AppendStatus($", Failed. NCA File {Path.GetFileName(nca)} is either corrupted or encrypted.");
-                        if (File.Exists(ncafile))
-                            File.Delete(ncafile);
-                    }
-                    else
-                    {
                         AppendStatus(", Done.");
                     }
-
-                    continue;
                 }
-                
-                using (var naxfile = new Nax0(_keyset, OpenSplitNcaStream(nca), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(nca))}/{Path.GetFileName(nca)}", false))
+                catch (Exception ex)
                 {
-                    using (var ncaData = new Nca(_keyset, naxfile.Stream, true))
-                    {
-                        if (ncaData.Header.ContentType != ContentType.Control &&
-                            ncaData.Header.ContentType != ContentType.Meta)
-                            continue;
-                    }
-                    UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
-                    InitializeProgress((ulong)ncaFileParts.Sum(x => new FileInfo(x).Length));
-
-                    naxfile.Stream.Position = 0;
-
-                    using (var sw = new BinaryWriter(new FileStream(ncafile, FileMode.Create)))
-                    {
-                        using (var sr = new BinaryReader(naxfile.Stream))
-                        {
-                            byte[] bytes;
-                            do
-                            {
-                                bytes = sr.ReadBytes(0x100000);
-                                if (bytes.Length <= 0) continue;
-
-                                sw.Write(bytes);
-                                UpdateProgress((ulong)bytes.LongLength);
-                                hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
-                            } while (bytes.Length > 0);
-                        }
-
-                        hash.TransformFinalBlock(new byte[0], 0, 0);
-                    }
-                    var result = nca.ToLowerInvariant()
-                        .Contains(hash.Hash.Take(16).ToArray().ToHexString().ToLowerInvariant());
-
-                    if (!result)
-                    {
-                        AppendStatus(", Verification Failed: File is corrupt.");
-
-                        if (File.Exists(ncafile))
-                            File.Delete(ncafile);
-
-                        continue;
-                    }
-
-                    AppendStatus(", Done.");
+                    UpdateStatus($"Failed to Decrypt NCA file \"{Path.GetFileName(Path.GetDirectoryName(nca))}/{Path.GetFileName(nca)}\" due to an exception:", 
+                        $"Exception: {ex.Message}{Environment.NewLine}", 
+                        $"Stack Trace:{ex.StackTrace}");
                 }
 
             }
@@ -869,27 +791,24 @@ namespace SwitchSDTool
             UpdateStatus($@"NCA Decryption completed.");
         }
 
-        private static Stream OpenSplitNcaStream(string path)
+
+        private Stream OpenSplitNcaStream(string path)
         {
             List<string> files = new List<string>();
             List<Stream> streams = new List<Stream>();
 
-            if (Directory.Exists(path))
+            if (_sdFileSystem.DirectoryExists(path))
             {
                 while (true)
                 {
                     var partName = Path.Combine(path, $"{files.Count:D2}");
-                    if (!File.Exists(partName)) break;
+                    if (!_sdFileSystem.FileExists(partName)) break;
 
                     files.Add(partName);
                 }
             }
-            else if (File.Exists(path))
+            else if (_sdFileSystem.FileExists(path))
             {
-                if (Path.GetFileName(path) != "00")
-                {
-                    return File.Open(path, FileMode.Open, FileAccess.Read);
-                }
                 files.Add(path);
             }
             else
@@ -899,13 +818,34 @@ namespace SwitchSDTool
 
             foreach (var file in files)
             {
-                streams.Add(File.Open(file, FileMode.Open, FileAccess.Read));
+                streams.Add(_sdFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read));
             }
 
-            if (streams.Count == 0) return null;
+            Stream stream;
+            switch (streams.Count)
+            {
+                case 0:
+                    return null;
+                case 1:
+                    stream = streams[0];
+                    break;
+                default:
+                    stream = new CombinationStream(streams);
+                    break;
+            }
 
-            var stream = new CombinationStream(streams);
-            return stream;
+            bool isNax0;
+            using (var sr = new BinaryReader(stream, Encoding.Default, true))
+            {
+                stream.Position = 0x20;
+                isNax0 = sr.ReadUInt32() == 0x3058414E;
+                stream.Position = 0;
+            }
+
+            return isNax0
+                ? new Nax0(_keyset, stream, $@"/registered/{Path.GetFileName(Path.GetDirectoryName(path)).ToUpperInvariant()}/{Path.GetFileName(path).ToLowerInvariant()}", false).Stream
+                : stream;
+
         }
 
         private void ClearGameImageLists()
@@ -1089,7 +1029,8 @@ namespace SwitchSDTool
 
             foreach (var cnmt in _cnmtFiles.Values)
             {
-                if (PackNSP(cnmt))
+                var result = PackNSP(cnmt);
+                if (result)
                     packed++;
             }
 
@@ -1175,7 +1116,7 @@ namespace SwitchSDTool
             try
             {
                 _progressDivisor = 1;
-                while (max > int.MaxValue)
+                while (max > Int32.MaxValue)
                 {
                     max /= 2;
                     _progressDivisor *= 2;
@@ -1313,21 +1254,21 @@ namespace SwitchSDTool
                     CnmtContentType.Control
                 };
 
-                var sdfiles = Configuration.GetSDDirectories;
+                var sdfiles = GetSDDirectories(_sdFileSystem);
 
                 var exitEntries = new List<CnmtContentEntry>();
                 exitEntries.AddRange(from type in types
                     from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where !File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.All(x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))
+                    where Enumerable.All<string>(sdfiles, x => !x.ToLowerInvariant().EndsWith($"{entry.NcaId.ToHexString()}.nca"))
                     select entry);
                 if (exitEntries.Any())
                 {
                     return (false, new[]
                     {
                         " - Failed.",
-                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{string.Join(Environment.NewLine, exitEntries.Select(x => x.NcaId.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
+                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{String.Join(Environment.NewLine, exitEntries.Select(x => x.NcaId.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
                     });
                 }
 
@@ -1340,12 +1281,12 @@ namespace SwitchSDTool
                     from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.Any(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"))
+                    where Enumerable.Any<string>(sdfiles, x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
                 controlEntries.AddRange(from entry in cnmt.ContentEntries
                     where entry.Type == CnmtContentType.Control
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where sdfiles.Any(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"))
+                    where Enumerable.Any<string>(sdfiles, x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
 
                 var packFiles = new List<string>
@@ -1466,27 +1407,30 @@ namespace SwitchSDTool
         private void WriteNCAtoNSP(FileStream nspFile, BinaryWriter sw, CnmtContentEntry entry)
         {
             var hash = SHA256.Create();
-            var filename = Configuration.GetSDDirectories.FirstOrDefault(x => x.EndsWith(entry.NcaId.ToHexString() + ".nca"));
+            var filename = Enumerable.FirstOrDefault<string>(GetSDDirectories(_sdFileSystem), x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"));
             if(filename == null)
                 throw new Exception($@"{entry.NcaId.ToHexString()}.nca does not exist.");
 
-            using (var ncaFile = new Nax0(_keyset, OpenSplitNcaStream(filename), $@"/registered/{Path.GetFileName(Path.GetDirectoryName(filename))}/{Path.GetFileName(filename)}", false))
+            using (var ncaFile = OpenSplitNcaStream(filename))
             {
-                using (var sr = new BinaryReader(ncaFile.Stream))
+                if(ncaFile == null)
+                    throw new Exception($@"{entry.NcaId.ToHexString()}.nca does not exist.");
+
+                using (var sr = new BinaryReader(ncaFile))
                 {
-                    byte[] bytes;
-                    do
+                    byte[] bytes = new byte[0];
+                    while (sr.BaseStream.Position != sr.BaseStream.Length)
                     {
-                        bytes = sr.ReadBytes(0x100000);
+                        bytes = sr.ReadBytes((int)Math.Min(sr.BaseStream.Length - sr.BaseStream.Position, 0x100000));
                         if (bytes.Length <= 0) continue;
 
                         sw.Write(bytes);
                         SetProgress((ulong)nspFile.Length);
                         //UpdateProgress((ulong)bytes.Length);
                         hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
-                    } while (bytes.Length > 0);
+                    }
 
-                    hash.TransformFinalBlock(bytes, 0, bytes.Length);
+                    hash.TransformFinalBlock(new byte[0], 0, 0);
                 }
 
                 if (!hash.Hash.ToArray().ToHexString().Equals(entry.Hash.ToHexString()))
@@ -1496,11 +1440,11 @@ namespace SwitchSDTool
 
         private void btnParseNCA_Click(object sender, EventArgs e)
         {
-            if (_sdKey == null)
+            /*if (_sdKey == null)
             {
                 btnFindSDKey_Click(null, null);
-            }
-            if (_sdKey == null || !CheckKeys()) return;
+            }*/
+            if (/*_sdKey == null ||*/ !CheckKeys()) return;
            
             UpdateStatus($@"Parsing Decrypted NCA files");
 
@@ -1726,10 +1670,10 @@ namespace SwitchSDTool
         {
             txtMessage.Text = _messageBox.TryGetValue(listStatus.SelectedIndex, out var message) && message != null
                 ? message
-                : string.Empty;
+                : String.Empty;
 
-            txtMessage.Visible = txtMessage.Text != string.Empty;
-            scGameIconInfo.Visible = txtMessage.Text == string.Empty;
+            txtMessage.Visible = txtMessage.Text != String.Empty;
+            scGameIconInfo.Visible = txtMessage.Text == String.Empty;
         }
 
         private void btnDeleteFromSD_Click(object sender, EventArgs e)
@@ -1767,7 +1711,7 @@ namespace SwitchSDTool
 
         private void DeleteSDFile(Cnmt cnmt, TreeNode childNode)
         {
-            var sdcard = Configuration.GetSDDirectories;
+            var sdcard = GetSDDirectories(_sdFileSystem);
             var deleteSuccess = true;
             UpdateStatus($@"Deleting {childNode.Parent.Text} - {childNode.Text}");
             var tid = $"{cnmt.TitleId:x16}";
@@ -1775,8 +1719,8 @@ namespace SwitchSDTool
             entries.Add(_cnmtNcaFiles[tid]);
             foreach (var entry in entries)
             {
-                var ncafile = sdcard.FirstOrDefault(x => x.Contains(entry.NcaId.ToHexString()));
-                if (ncafile != null)
+                var ncafile = Enumerable.FirstOrDefault<string>(sdcard, x => x.ToLowerInvariant().Contains(entry.NcaId.ToHexString()));
+                if (ncafile != null && _sdFileSystem is FileSystem)
                     deleteSuccess &= DeleteSDNCA(ncafile);
                 else
                     deleteSuccess &= DeleteLocalNCA(entry.NcaId.ToHexString() + ".nca");
@@ -1806,7 +1750,7 @@ namespace SwitchSDTool
                 }
                 catch (Exception ex)
                 {
-                    AppendStatus(string.Empty,
+                    AppendStatus(String.Empty,
                         $@"[WARNING] - Failed to delete directory {Path.GetDirectoryName(ncafile)}:{Environment.NewLine}",
                         $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 }
@@ -1815,7 +1759,7 @@ namespace SwitchSDTool
             }
             catch (Exception ex)
             {
-                AppendStatus(string.Empty,
+                AppendStatus(String.Empty,
                     $@"[FATAL] - Failed to delete SD Card copy of {ncafile} due to an exception:{Environment.NewLine}",
                     $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 return false;
@@ -1836,7 +1780,7 @@ namespace SwitchSDTool
             }
             catch (Exception ex)
             {
-                AppendStatus(string.Empty,
+                AppendStatus(String.Empty,
                     $@"[FATAL] - Failed to delete local copy of {ncafilename} due to an exception:{Environment.NewLine}",
                     $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 return false;
@@ -1865,14 +1809,14 @@ namespace SwitchSDTool
             var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
             var data = result
                 ? nacp.GetTitleNameIcon(tvLanguage)
-                : (string.Empty, string.Empty, string.Empty, string.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
+                : (String.Empty, String.Empty, String.Empty, String.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
             var languages = result
                 ? nacp.Languages
                 : new List<Languages>();
 
             pbGameIcon.Image = data.Item5;
             txtGameInfo.Text = !result 
-                ? string.Empty
+                ? String.Empty
                     : $@"Game: {data.Item1}{Environment.NewLine
                     }Devloper: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
@@ -1899,7 +1843,7 @@ namespace SwitchSDTool
         {
             toolTip1.RemoveAll();
             var selNode = tvGames.GetNodeAt(tvGames.PointToClient(Cursor.Position));
-            if (!string.IsNullOrEmpty((selNode?.Parent ?? selNode)?.ToolTipText))
+            if (!String.IsNullOrEmpty((selNode?.Parent ?? selNode)?.ToolTipText))
             {
                 toolTip1.SetToolTip(tvGames, (selNode.Parent ?? selNode).ToolTipText);
             }
@@ -1937,7 +1881,7 @@ namespace SwitchSDTool
         private string AddNCAMetaInfo()
         {
             if(tvGames.SelectedNode?.Parent == null)
-                return string.Empty;
+                return String.Empty;
 
             var titlekey = $@"Title Key: Not Available{Environment.NewLine}";
             if (_tickets.TryGetValue((string) tvGames.SelectedNode.Tag, out var ticket) && ticket.Anonymize())
@@ -1956,10 +1900,10 @@ namespace SwitchSDTool
             output += titlekey;
             output += $@"Type: {cnmt.Type}{Environment.NewLine}{Environment.NewLine}";
             
-            var sdFiles = Configuration.GetSDDirectories;
+            var sdFiles = GetSDDirectories(_sdFileSystem);
             foreach (var entry in entries)
             {
-                if (sdFiles.All(x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))) continue;
+                if (Enumerable.All<string>(sdFiles, x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))) continue;
                 output += $@"{entry.NcaId.ToHexString() + ".nca"} ({entry.Type}){Environment.NewLine}";
             }
 
@@ -1971,35 +1915,28 @@ namespace SwitchSDTool
             tvLanguage_AfterSelect(null, null);
         }
 
-        private void cbRSAKey_TextChanged(object sender, EventArgs e)
-        {
-            if (Configuration.Data.RSAKeys.TryGetValue(cbRSAKey.Text.ToUpperInvariant(), out _))
-            {
-                cbRSAKey.SelectedItem = cbRSAKey.Text.ToUpperInvariant();
-                cbRSAKey_SelectedIndexChanged(sender, e);
-            }
-        }
-
         private void cbRSAKey_SelectedIndexChanged(object sender, EventArgs e)
         {
+            Ticket.UpdateRSAKey();
+            btnLoadRSAKEK.Enabled = true;
+            if (cbRSAKey.SelectedIndex < 0) cbRSAKey.SelectedIndex = 0;
+            if (cbRSAKey.SelectedIndex == 0) return;
+
             var item = cbRSAKey.SelectedItem;
             if (item is string serialNumber && Configuration.Data.RSAKeys.TryGetValue(serialNumber, out var keys))
             {
                 var split = keys.Split(',');
-                if (split.Length == 3 && split.All(x => x.ToByte().Length != 0))
+                btnLoadRSAKEK.Enabled = !(split.Length == 3 && split.All(x => x.ToByte().Length != 0));
+
+                if (!btnLoadRSAKEK.Enabled)
                 {
-                    Ticket.RsaN = new BigInteger(split[0].ToByte());
-                    Ticket.RsaD = new BigInteger(split[1].ToByte());
-                    Ticket.RsaE = new BigInteger(split[2].ToByte());
-                    btnLoadRSAKEK.Enabled = false;
+                    Ticket.UpdateRSAKey(new BigInteger(split[1].ToByte()), new BigInteger(split[0].ToByte()), new BigInteger(split[2].ToByte()));
                     return;
                 }
             }
 
-            Ticket.RsaN = BigInteger.Zero;
-            Ticket.RsaD = BigInteger.Zero;
-            Ticket.RsaE = BigInteger.Zero;
-            btnLoadRSAKEK.Enabled = true;
+            Ticket.UpdateRSAKey();
+            cbRSAKey.Items.Remove(item);
         }
 
         private void txtTitleKeyURL_TextChanged(object sender, EventArgs e)
@@ -2009,7 +1946,7 @@ namespace SwitchSDTool
 
         private void btnGetTitleKeys_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(Configuration.Data.TitleKeyDataBaseURL)) return;
+            if (String.IsNullOrEmpty(Configuration.Data.TitleKeyDataBaseURL)) return;
             try
             {
                 UpdateStatus("Retrieving Title Key database");
@@ -2056,7 +1993,7 @@ namespace SwitchSDTool
                             var split = line.Split('|');
                             if (split.Length < 3 || split[0].ToByte().Length != 16 || split[1].ToByte().Length != 16)
                                 continue;
-                            split[2] = string.Join("|", split.Skip(2));
+                            split[2] = String.Join("|", split.Skip(2));
 
                             var typeBytes = split[0].Substring(12, 4).ToByte();
                             typeBytes[0] &= 0x1F;
@@ -2089,60 +2026,130 @@ namespace SwitchSDTool
 
         private void btnGetTitleKeys_Click_1(object sender, EventArgs e)
         {
-            var titlekeydump = string.Empty;
+            var titlekeydump = String.Empty;
 
-            UpdateStatus("Extracting Title Key log");
-            var tickets = _personalTickets.Values.Where(x => !_databaseTitleNames.ContainsKey(x.TitleID.ToHexString())).ToArray();
+            UpdateStatus("Extracting Personal Title Key log");
+            var tickets = _personalTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0,16))).ToArray();
             InitializeProgress((ulong) tickets.Length);
 
             for(var i = 0; i < tickets.Length; i++)
             {
                 UpdateProgress(1);
                 var ticket = tickets[i];
-                if (!ticket.Anonymize())
-                {
-                    for (var j = 1; j < cbRSAKey.Items.Count; j++)
-                    {
-                        cbRSAKey.SelectedIndex = j;
-                        cbRSAKey_SelectedIndexChanged(null, null);
-                        if (ticket.Anonymize()) break;
-                    }
-
-                    if (!ticket.Anonymize())
-                        continue;
-                }
-
-                if (ticket.Data[0x140] == 0 && ticket.Data[0x141] == 0 && ticket.Data[0x142] == 0 && ticket.Data[0x143] == 0)
-                    continue;
-
-                var issuer = Encoding.UTF8.GetString(ticket.Data.Skip(0x140).Take(0x40).ToArray());
-                var index = issuer.IndexOf("\0", StringComparison.Ordinal);
-                if (index > 0) issuer = issuer.Substring(0, index);
-
-                if (!issuer.StartsWith("Root"))
-                    titlekeydump += $"Unknown Ticket verifier: {issuer}{Environment.NewLine}";
 
                 titlekeydump += $"Ticket {i}:{Environment.NewLine}";
-                titlekeydump += $"    Rights ID: {ticket.RightsID.ToHexString()}{Environment.NewLine}";
-                titlekeydump += $"    Title ID:  {ticket.TitleID.ToHexString()}{Environment.NewLine}";
-                titlekeydump += $"    Titlekey:  {ticket.TitleKey.ToHexString()}{Environment.NewLine}";
+                titlekeydump += $"    Rights ID: {ticket.Key}{Environment.NewLine}";
+                titlekeydump += $"    Title ID:  {ticket.Key.Substring(0,16)}{Environment.NewLine}";
+                titlekeydump += $"    Titlekey:  {ticket.Value}{Environment.NewLine}";
             }
 
             HideProgress();
-            if (titlekeydump == string.Empty)
+            if (titlekeydump == String.Empty)
             {
-                UpdateStatus("No Title keys to show");
+                AppendStatus(_databaseTitleNames.Count == 0 
+                    ? " - No Title keys to show" 
+                    : " - All Title keys already exist in the database");
                 return;
             }
 
             try
             {
                 File.WriteAllText("personal_keys.txt", titlekeydump);
-                UpdateStatus("Title keys saved to personal_keys.txt", titlekeydump);
+                AppendStatus(" - Title keys saved to personal_keys.txt", titlekeydump);
             }
             catch
             {
-                UpdateStatus("Click this log entry to see Title key dump", titlekeydump);
+                AppendStatus(" - Failed to write personal_keys.txt");
+                UpdateStatus("Click this log entry to see Personal key dump", titlekeydump);
+            }
+        }
+
+        private Stream _encStream;
+        private void button2_Click(object sender, EventArgs e)
+        {
+            var nandsystemfilename = "C:\\Users\\CaitSith2\\Desktop\\SD Swap\\Switch\\Backup\\rawnand.bin";
+            _encStream?.Dispose();
+            _encStream = File.Open(nandsystemfilename, FileMode.Open, FileAccess.Read);
+            _keyset.bis_keys[2] = "95D775734D6180BC83D51DA2E3ABEB39292D5C980958D47B64A92131FEE018CF".ToByte();
+            _keyset.bis_keys[3] = "95D775734D6180BC83D51DA2E3ABEB39292D5C980958D47B64A92131FEE018CF".ToByte();
+            var nand = new Nand(_encStream, _keyset);
+            _sdFileSystem = nand.OpenUserPartition();
+            _systemNandFileSystem = nand.OpenSystemPartition();
+
+            /*using ()
+            {
+                
+
+                /*var xts = XtsAes128.Create("95D775734D6180BC83D51DA2E3ABEB39292D5C980958D47B64A92131FEE018CF".ToByte());
+                var decStream = new RandomAccessSectorStream(new XtsSectorStream(encStream, xts, 0x4000, 0), true);
+                FatFileSystem fat = new FatFileSystem(decStream, Ownership.None);
+                NandPartition system = new NandPartition(fat);
+                ListFiles(system, "\\");
+            }*/
+        }
+
+        private void ListFiles(NandPartition partition, string path)
+        {
+            UpdateStatus(path);
+            foreach (var dir in partition.Fs.GetDirectories(path))
+                ListFiles(partition, dir);
+            foreach (var file in partition.Fs.GetFiles(path))
+                UpdateStatus(file);
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                button1_Click(null, null);
+                UpdateStatus($"Iteration {i + 1} of 100");
+            }
+        }
+
+        private void btnExtractCommonKeys_Click(object sender, EventArgs e)
+        {
+            var titlekeydump = string.Empty;
+            var formattedtitlekeydump = string.Empty;
+
+            UpdateStatus("Extracting Common Title Key log");
+            var tickets = _commonTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0, 13) + "000")).ToArray();
+            InitializeProgress((ulong)tickets.Length);
+
+            for (var i = 0; i < tickets.Length; i++)
+            {
+                UpdateProgress(1);
+                var ticket = tickets[i];
+
+                titlekeydump += $"Ticket {i}:{Environment.NewLine}";
+                titlekeydump += $"    Rights ID: {ticket.Key}{Environment.NewLine}";
+                titlekeydump += $"    Title ID:  {ticket.Key.Substring(0, 16)}{Environment.NewLine}";
+                titlekeydump += $"    Titlekey:  {ticket.Value}{Environment.NewLine}";
+
+                if (!_titleNames.TryGetValue(ticket.Key.Substring(0, 13) + "000", out var gameTitle))
+                    gameTitle = "Unknown";
+                formattedtitlekeydump += $"{ticket.Key}|{ticket.Value}|{gameTitle}";
+            }
+
+            HideProgress();
+            if (titlekeydump == String.Empty)
+            {
+                AppendStatus(_databaseTitleNames.Count == 0
+                    ? " - No Title keys to show"
+                    : " - All Base game Title keys already exist in the database");
+                return;
+            }
+
+            try
+            {
+                File.WriteAllText("common_keys.txt", titlekeydump);
+                File.WriteAllText("formatted_common_keys.txt",formattedtitlekeydump);
+                AppendStatus(" - Title keys saved to common_keys.txt and formatted_common_keys.txt", titlekeydump);
+            }
+            catch
+            {
+                AppendStatus(" - Failed to write at least one of common_keys.txt and formatted_common_keys.txt");
+                UpdateStatus("Click this log entry to see common key dump", titlekeydump);
+                UpdateStatus("Click this log entry to see formatted common key dump", formattedtitlekeydump);
             }
         }
     }
