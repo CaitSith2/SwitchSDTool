@@ -5,10 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Security.Cryptography;
 using System.Windows.Forms;
-using libhac;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -23,14 +21,17 @@ namespace SwitchSDTool
         public string NSPPath = "NSP";
         public string SystemPath = "SYSTEM"; //"A" + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar;
 
+        // ReSharper disable once InconsistentNaming
         public string ETicketRSAKEK = "Replace me with the actual eticket_rsa_kek.";
         public List<Languages> LanguageOrder = new List<Languages>();
         public GameIconSize GameIconSize = GameIconSize.Small;
         public Size MainFormSize = new Size(932, 595);
 
+        // ReSharper disable once InconsistentNaming
         public Dictionary<string, string> RSAKeys =
             new Dictionary<string, string>();
 
+        // ReSharper disable once InconsistentNaming
         public string TitleKeyDataBaseURL = null;
     }
 
@@ -81,13 +82,6 @@ namespace SwitchSDTool
                 var node = languageView.Nodes.Add(l.ToString(), l.StringValueOf());
                 node.Tag = l;
             }
-        }
-
-        // ReSharper disable once InconsistentNaming
-        public static bool VerifyETicketRSAKEK()
-        {
-            var rsakek = Data.ETicketRSAKEK.ToByte();
-            return rsakek != null && SHA256.Create().ComputeHash(rsakek).Compare("***REMOVED***".ToByte());
         }
 
         private static readonly string ConfigurationFile = Path.Combine("Tools", "Configuration.json");

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -9,20 +8,17 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using CTR;
-using DiscUtils.Fat;
-using DiscUtils.Streams;
-using Microsoft.Win32;
 using SwitchSDTool.Properties;
-using libhac;
-using libhac.Nand;
-using libhac.Savefile;
-using libhac.Streams;
-using libhac.XTSSharp;
+using LibHac;
+using LibHac.Nand;
+using LibHac.Savefile;
+using LibHac.Streams;
 using Application = System.Windows.Forms.Application;
 
+#pragma warning disable IDE1006 // Naming Styles
 namespace SwitchSDTool
 {
     public partial class Form1 : Form
@@ -42,7 +38,7 @@ namespace SwitchSDTool
         private IFileSystem _sdFileSystem;
         private IFileSystem _systemNandFileSystem;
 
-        private readonly Keyset _keyset = new Keyset();
+        private Keyset _keyset = new Keyset();
 
         private int _ticketsNotInDB;
         private readonly HashSet<string> _personalTitleIDs = new HashSet<string>();
@@ -67,7 +63,7 @@ namespace SwitchSDTool
             _sdKey = null;
             btnFindSDKey.Enabled = true;
 
-            var split = fbdSDCard.SelectedPath.PathSplit();
+            string[] split = fbdSDCard.SelectedPath.PathSplit();
             var rootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Nintendo", "Contents");
             var baseFolder = Path.Combine(fbdSDCard.SelectedPath, "Nintendo", "Contents");
             var nandRootFolder = Path.Combine(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar, "Contents");
@@ -124,16 +120,16 @@ namespace SwitchSDTool
 
             try
             {
-                var privateBytes = new byte[16];
-                var sdBytes = new byte[512];
+                byte[] privateBytes;
+                byte[] sdBytes;
 
                 using (var sr = new BinaryReader(_sdFileSystem.OpenFile("private", FileMode.Open, FileAccess.Read)))
                     privateBytes = sr.ReadBytes(16);
 
-                var sdkeydata = _systemNandFileSystem.OpenFile(sdkeyfile, FileMode.Open, FileAccess.Read);
-                //var sdkeysave = new Savefile(sdkeydata);
-                //using (var sr = new BinaryReader(sdkeysave.OpenFile("private")))
-                using (var sr = new BinaryReader(sdkeydata))
+                var sdKeyData = _systemNandFileSystem.OpenFile(sdkeyfile, FileMode.Open, FileAccess.Read);
+                var sdKeySave = new Savefile(sdKeyData);
+                using (var sr = new BinaryReader(sdKeySave.OpenFile("/private")))
+                    //using (var sr = new BinaryReader(sdKeyData))
                     sdBytes = sr.ReadBytes((int) sr.BaseStream.Length);
 
                 for (var i = 0; i < sdBytes.Length - 16; i++)
@@ -175,7 +171,7 @@ namespace SwitchSDTool
             btnFindSDKey.Enabled = true;
             _sdKey = null;
 
-            var split = fbdSDCard.SelectedPath.PathSplit();
+            string[] split = fbdSDCard.SelectedPath.PathSplit();
 
             if (new FileSystem(split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar).DirectoryExists("save"))
                 Configuration.Data.SystemPath = split[0] + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar;
@@ -186,22 +182,13 @@ namespace SwitchSDTool
         private void btnLoadRSAKEK_Click(object sender, EventArgs e)
         {
             CheckKeys();
-            var rsakek = Configuration.Data.ETicketRSAKEK.ToByte();
-            if (!Configuration.VerifyETicketRSAKEK())
-            {
-                UpdateStatus(@"Bad E-Ticket RSA Key Encryption Key");
-                return;
-            }
-
-            txtRSAKEK.Text = @"-------- eticket_rsa_kek redacted --------";
-            UpdateStatus(@"E-Ticket RSA Key Encryption Key loaded successfully");
-            txtRSAKEK.Enabled = false;
+            byte[] rsakek = Configuration.Data.ETicketRSAKEK.ToByte();
 
             if (!File.Exists("PRODINFO.BIN"))
             {
                 UpdateStatus(@"PRODINFO.bin missing.");
                 return;
-            };
+            }
             
             using (var prodinfo = File.OpenRead("PRODINFO.BIN"))
             {
@@ -211,13 +198,13 @@ namespace SwitchSDTool
                     return;
                 }
 
-                var magic = new byte[4];
-                var hash = new byte[32];
-                var ctr = new byte[16];
+                byte[] magic = new byte[4];
+                byte[] hash = new byte[32];
+                byte[] ctr = new byte[16];
 
-                var rsa_D = new byte[0x101];
-                var rsa_N = new byte[0x101];
-                var rsa_E = new byte[4];
+                byte[] rsaD = new byte[0x101];
+                byte[] rsaN = new byte[0x101];
+                byte[] rsaE = new byte[4];
 
                 prodinfo.Read(magic, 0, 4);
                 if (!magic.Compare(Encoding.ASCII.GetBytes("CAL0")))
@@ -231,7 +218,7 @@ namespace SwitchSDTool
                 prodinfo.Read(magic, 0, 4);
                 var size = BitConverter.ToInt32(magic, 0);
 
-                var data = new byte[size];
+                byte[] data = new byte[size];
 
                 prodinfo.Seek(0x20, SeekOrigin.Begin);
                 prodinfo.Read(hash, 0, 0x20);
@@ -247,11 +234,11 @@ namespace SwitchSDTool
                 prodinfo.Read(ctr, 0, 16);
                 prodinfo.Read(data, 0, 0x230);
                 data = new AesCtr(ctr).CreateDecryptor(rsakek).TransformFinalBlock(data, 0, data.Length).Reverse().ToArray();
-                Array.Copy(data, 0x130, rsa_D, 0, rsa_D.Length - 1);
-                Array.Copy(data, 0x30, rsa_N, 0, rsa_N.Length - 1);
-                Array.Copy(data, 0x2C, rsa_E, 0, rsa_E.Length);
+                Array.Copy(data, 0x130, rsaD, 0, rsaD.Length - 1);
+                Array.Copy(data, 0x30, rsaN, 0, rsaN.Length - 1);
+                Array.Copy(data, 0x2C, rsaE, 0, rsaE.Length);
 
-                Ticket.UpdateRSAKey(new BigInteger(rsa_D), new BigInteger(rsa_N), new BigInteger(rsa_E));
+                Ticket.UpdateRSAKey(new BigInteger(rsaD), new BigInteger(rsaN), new BigInteger(rsaE));
                 if (!Ticket.ValidRSAKey)
                 {
                     UpdateStatus(@"PRODINFO.bin corrupted or not decrypted correctly - RSA Key failed to decrypt correctly.");
@@ -268,18 +255,22 @@ namespace SwitchSDTool
                 if (!cbRSAKey.Items.Contains(serialNumber))
                 {
                     cbRSAKey.Items.Add(serialNumber);
-                    Configuration.Data.RSAKeys[serialNumber] = $"{rsa_N.ToHexString()},{rsa_D.ToHexString()},{rsa_E.ToHexString()}";
+                    Configuration.Data.RSAKeys[serialNumber] = $"{rsaN.ToHexString()},{rsaD.ToHexString()},{rsaE.ToHexString()}";
                 }
 
                 cbRSAKey.SelectedItem = serialNumber;
 
                 btnLoadRSAKEK.Enabled = false;
                 UpdateStatus("RSA Key extracted successfully from PRODINFO.bin");
+
+                //RSA_KEK confirmed to be likely correct because it successfully decrypted the RSA Key contained within PRODINFO.bin.
+                txtRSAKEK.Text = @"-------- eticket_rsa_kek redacted --------";
+                txtRSAKEK.Enabled = false;
                 Application.DoEvents();
             }
         }
 
-        private Dictionary<int, string> _messageBox = new Dictionary<int, string>();
+        private readonly Dictionary<int, string> _messageBox = new Dictionary<int, string>();
 
         private void UpdateStatus(string status, params string[] messageArgs)
         {
@@ -299,7 +290,7 @@ namespace SwitchSDTool
                 return;
             }
 
-            var message = messageArgs.Aggregate(String.Empty, (current, m) => current + m);
+            var message = messageArgs.Aggregate(string.Empty, (current, m) => current + m);
             _messageBox[listStatus.Items.Count - 1] = message;
 
             Application.DoEvents();
@@ -318,8 +309,8 @@ namespace SwitchSDTool
 
             _messageBox.TryGetValue(listStatus.Items.Count - 1, out var message);
             if (message == null)
-                message = String.Empty;
-            message += messageArgs.Aggregate(String.Empty, (current, m) => current + m);
+                message = string.Empty;
+            message += messageArgs.Aggregate(string.Empty, (current, m) => current + m);
             _messageBox[listStatus.Items.Count - 1] = message;
 
             Application.DoEvents();
@@ -327,6 +318,14 @@ namespace SwitchSDTool
 
         private void Form1_Load(object sender, EventArgs e)
         {
+#if DEBUG
+            button2.Visible = true;
+            button3.Visible = true;
+#else
+            button2.Visible = false;
+            button3.Visible = false;
+#endif
+
             Directory.CreateDirectory("Tools");
             lblStatus.Text = "";
             tsProgressText.Text = "";
@@ -339,27 +338,21 @@ namespace SwitchSDTool
             SetGameImages(size);
             Size = Configuration.Data.MainFormSize;
 
-            if (Configuration.VerifyETicketRSAKEK())
-            {
-                txtRSAKEK.Text = @"-------- eticket_rsa_kek redacted --------";
-                txtRSAKEK.Enabled = false;
-            }
-
-            var generatedKeys = _validKeySizes.Keys.Where(x => x.EndsWith("_")).ToArray();
+            string[] generatedKeys = ValidKeySizes.Keys.Where(x => x.EndsWith("_")).ToArray();
             foreach (var key in generatedKeys)
             {
-                var keysize = _validKeySizes[key];
-                _validKeySizes.Remove(key);
+                var keysize = ValidKeySizes[key];
+                ValidKeySizes.Remove(key);
                 for (var i = 0; i < 32; i++)
                 {
-                    _validKeySizes[key + $"{i:00}"] = keysize;
+                    ValidKeySizes[key + $"{i:00}"] = keysize;
                 }
             }
 
-            var keysToRemove = new List<string>();
+            List<string> keysToRemove = new List<string>();
             foreach (var serial in Configuration.Data.RSAKeys.Keys)
             {
-                var split = Configuration.Data.RSAKeys[serial].Split(',').Where(x => x.Trim().ToByte().Length != 0).Select(x => x.Trim()).ToArray();
+                string[] split = Configuration.Data.RSAKeys[serial].Split(',').Where(x => x.Trim().ToByte().Length != 0).Select(x => x.Trim()).ToArray();
                 if (split.Length != 3)
                 {
                     keysToRemove.Add(serial);
@@ -377,7 +370,7 @@ namespace SwitchSDTool
             foreach (var serial in keysToRemove)
                 Configuration.Data.RSAKeys.Remove(serial);
 
-            txtTitleKeyURL.Text = Configuration.Data.TitleKeyDataBaseURL ?? String.Empty;
+            txtTitleKeyURL.Text = Configuration.Data.TitleKeyDataBaseURL ?? string.Empty;
 
             _sdFileSystem = new FileSystem(Configuration.Data.SDpath ?? "");
             _systemNandFileSystem = new FileSystem(Configuration.Data.SystemPath ?? "");
@@ -402,10 +395,10 @@ namespace SwitchSDTool
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e1"), FileMode.Open, FileAccess.Read))
                 {
                     var commonTickets = new Savefile(stream);
-                    var ticketList = new BinaryReader(commonTickets.OpenFile("ticket_list.bin"));
-                    var tickets = new BinaryReader(commonTickets.OpenFile("ticket.bin"));
+                    var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
+                    var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
                     var titleID = ticketList.ReadUInt64();
-                    while(titleID != UInt64.MaxValue)
+                    while(titleID != ulong.MaxValue)
                     {
                         ticketList.BaseStream.Position += 0x18;
                         var ticket = new Ticket(tickets.ReadBytes(0x400));
@@ -420,8 +413,8 @@ namespace SwitchSDTool
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e2"), FileMode.Open, FileAccess.Read))
                 {
                     var personalTickets = new Savefile(stream);
-                    var ticketList = new BinaryReader(personalTickets.OpenFile("ticket_list.bin"));
-                    var tickets = new BinaryReader(personalTickets.OpenFile("ticket.bin"));
+                    var ticketList = new BinaryReader(personalTickets.OpenFile("/ticket_list.bin"));
+                    var tickets = new BinaryReader(personalTickets.OpenFile("/ticket.bin"));
 
                     var firstTicket = false;
                     var titleID = ticketList.ReadUInt64();
@@ -447,7 +440,7 @@ namespace SwitchSDTool
                         ticketList.BaseStream.Position += 0x18;
                         var ticket = new Ticket(tickets.ReadBytes(0x400));
 
-                        firstTicket = ticket.Anonymize();
+                        firstTicket |= ticket.Anonymize();
                         if (!firstTicket)
                         {
                             for (var j = 1; j < cbRSAKey.Items.Count && !firstTicket; j++)
@@ -471,15 +464,22 @@ namespace SwitchSDTool
                         _personalTickets[ticket.RightsID.ToHexString()] = ticket.TitleKey.ToHexString();
                         titleID = ticketList.ReadUInt64();
                     }
+
+                    InitializeProgress(personalcount);
+                    Parallel.ForEach(_tickets.Values, (t) =>
+                    {
+                        t.Anonymize();
+                        UpdateProgress(1);
+                    });
                 }
 
             if (_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e3")))
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e3"), FileMode.Open, FileAccess.Read))
                 {
                     var ticketReleaseDates = new Savefile(stream);
-                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("ticket_list.bin"));
+                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("/ticket_list.bin"));
                     var titleID = ticketList.ReadUInt64();
-                    while (titleID != UInt64.MaxValue)
+                    while (titleID != ulong.MaxValue)
                     {
                         ticketList.BaseStream.Position += 0x18;
 
@@ -493,30 +493,11 @@ namespace SwitchSDTool
                 }
 
             HideProgress();
-            var dbresult = _databaseTitleNames.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
-            UpdateStatus($"Done. {_tickets.Count - count} new tickets dumped. {dbresult}{_tickets.Count} Tickets total.");
+            var dbResult = _databaseTitleNames.Count > 0 ? $"{_ticketsNotInDB} Tickets not in database. " : "";
+            UpdateStatus($"Done. {_tickets.Count - count} new tickets dumped. {dbResult}{_tickets.Count} Tickets total.");
         }
 
-        private static readonly Dictionary<string, byte[]> _keyHashes = new Dictionary<string, byte[]>
-        {
-            {"sd_card_nca_key_source", "***REMOVED***".ToByte()},
-            {"sd_card_kek_source", "***REMOVED***".ToByte()},
-            {"master_key_00", "***REMOVED***".ToByte()},
-            {"aes_key_generation_source", "***REMOVED***".ToByte()},
-            {"aes_kek_generation_source", "***REMOVED***".ToByte()},
-
-            {"header_key", "***REMOVED***".ToByte()},
-            {"key_area_key_application_source", "***REMOVED***".ToByte()},
-            {"key_area_key_ocean_source", "***REMOVED***".ToByte()},
-            {"key_area_key_system_source", "***REMOVED***".ToByte()},
-
-            {"master_key_01", "***REMOVED***".ToByte()},
-            {"master_key_02", "***REMOVED***".ToByte()},
-            {"master_key_03", "***REMOVED***".ToByte()},
-            {"master_key_04", "***REMOVED***".ToByte()},
-        };
-
-        private static readonly Dictionary<string, int> _validKeySizes = new Dictionary<string, int>
+        private static readonly Dictionary<string, int> ValidKeySizes = new Dictionary<string, int>
         {
             {"aes_kek_generation_source", 16},
             {"aes_key_generation_source", 16},
@@ -555,19 +536,19 @@ namespace SwitchSDTool
 
         private (bool,string) KeysTxtHasRequiredKeys(string filename)
         {
-            var keys = new Dictionary<string, byte[]>();
+            Dictionary<string, byte[]> keys = new Dictionary<string, byte[]>();
             using (var sr = new StreamReader(new FileStream(filename, FileMode.Open)))
             {
-                var keyname = String.Empty;
-                var keyvalue = String.Empty;
+                var keyname = string.Empty;
+                var keyvalue = string.Empty;
                 while (!sr.EndOfStream)
                 {
                     var line = sr.ReadLine();
                     if (line == null) continue;
-                    var split = line.Split(new[] {",", "="}, StringSplitOptions.None).Select(x => x.ToLowerInvariant().Trim()).ToArray();
+                    string[] split = line.Split(new[] {",", "="}, StringSplitOptions.None).Select(x => x.ToLowerInvariant().Trim()).ToArray();
                     switch (split.Length)
                     {
-                        case 1 when keyname == String.Empty:
+                        case 1 when keyname == string.Empty:
                             continue;
                         case 1:
                             keyvalue += Regex.Replace(split[0], @"\s+", "");
@@ -581,38 +562,25 @@ namespace SwitchSDTool
                     }
                     if (keyvalue.Any(x => !"0123456789ABCDEFabcdef".Contains(x))) continue;
 
-                    if(!_validKeySizes.TryGetValue(keyname, out var keysize) || keyvalue.ToByte().Length == keysize)
+                    if(!ValidKeySizes.TryGetValue(keyname, out var keysize) || keyvalue.ToByte().Length == keysize)
                         keys[keyname] = keyvalue.ToByte();
                 }
             }
 
-            foreach (var keyname in _validKeySizes.Keys)
+            foreach (var keyName in ValidKeySizes.Keys)
             {
-                var keyvalue = _validKeySizes[keyname];
-                if (keys.TryGetValue(keyname, out var keyBytes) && keyBytes.Length != keyvalue)
-                    keys.Remove(keyname);
+                var keyvalue = ValidKeySizes[keyName];
+                if (keys.TryGetValue(keyName, out byte[] keyBytes) && keyBytes.Length != keyvalue)
+                    keys.Remove(keyName);
             }
 
-            foreach (var keyname in _keyHashes.Keys)
-            {
-                if (!keys.TryGetValue(keyname, out var keyData))
-                {
-                    UpdateStatus($"Keys.txt is missing {keyname}");
-                    return (false,null);
-                }
+            //Code that verifies keys were equal to the required keys had to be redacted permanently.
 
-                if (!SHA256.Create().ComputeHash(keyData).ToHexString().Equals(_keyHashes[keyname].ToHexString()))
-                {
-                    UpdateStatus($"{keyname} in Keys.txt is invalid");
-                    return (false,null);
-                }
-            }
-
-            if (!Configuration.VerifyETicketRSAKEK() && keys.TryGetValue("eticket_rsa_kek", out var rsaKeyData))
+            if (keys.TryGetValue("eticket_rsa_kek", out byte[] rsaKeyData))
                 txtRSAKEK.Text = rsaKeyData.ToHexString();
 
-            var keysText = String.Empty;
-            foreach (var kvp in keys)
+            var keysText = string.Empty;
+            foreach (KeyValuePair<string, byte[]> kvp in keys)
             {
                 keysText += $@"{kvp.Key}={kvp.Value.ToHexString()}{Environment.NewLine}";
             }
@@ -628,7 +596,7 @@ namespace SwitchSDTool
                 var result = KeysTxtHasRequiredKeys(_fixedKeys);
                 if (result.Item1 && !File.Exists("keys.txt"))
                 {
-                    ExternalKeys.ReadKeyFile(_fixedKeys, keyset: _keyset);
+                    _keyset = ExternalKeys.ReadKeyFile(_fixedKeys);
                     if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
                     return true;
                 }
@@ -648,7 +616,8 @@ namespace SwitchSDTool
                 {
                     filename = _profileKeys;
                 }
-                ExternalKeys.ReadKeyFile(filename, keyset: _keyset);
+
+                _keyset = ExternalKeys.ReadKeyFile(filename);
                 if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
                 return true;
             }
@@ -671,7 +640,7 @@ namespace SwitchSDTool
 
                 //Directory.CreateDirectory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch"));
                 //File.Copy("keys.txt", _profileKeys);
-                ExternalKeys.ReadKeyFile(filename, keyset: _keyset);
+                _keyset = ExternalKeys.ReadKeyFile(filename);
                 if (_sdKey != null) _keyset.SetSdSeed(_sdKey);
                 return true;
             }
@@ -711,7 +680,7 @@ namespace SwitchSDTool
             if (!Directory.Exists(Configuration.Data.Decryptionpath))
                 Directory.CreateDirectory(Configuration.Data.Decryptionpath);
 
-            var ncaFiles = GetSDDirectories(_sdFileSystem);
+            string[] ncaFiles = GetSDDirectories(_sdFileSystem);
             if (ncaFiles.Length == 0)
             {
                 UpdateStatus("No NCAs present on SD card");
@@ -788,7 +757,7 @@ namespace SwitchSDTool
             }
 
             HideProgress();
-            UpdateStatus($@"NCA Decryption completed.");
+            UpdateStatus(@"NCA Decryption completed.");
         }
 
 
@@ -842,8 +811,14 @@ namespace SwitchSDTool
                 stream.Position = 0;
             }
 
+            if (isNax0 && _sdKey == null)
+            {
+                btnFindSDKey_Click(null, null);
+                CheckKeys();
+            }
+
             return isNax0
-                ? new Nax0(_keyset, stream, $@"/registered/{Path.GetFileName(Path.GetDirectoryName(path)).ToUpperInvariant()}/{Path.GetFileName(path).ToLowerInvariant()}", false).Stream
+                ? new Nax0(_keyset, stream, $@"/registered/{Path.GetFileName(Path.GetDirectoryName(path))?.ToUpperInvariant()}/{Path.GetFileName(path)?.ToLowerInvariant()}", false).Stream
                 : stream;
 
         }
@@ -884,7 +859,7 @@ namespace SwitchSDTool
 
         private void ReadControlInfo(string titleID, CnmtContentEntry entry)
         {
-            var titleIDBytes = titleID.ToByte();
+            byte[] titleIDBytes = titleID.ToByte();
             titleIDBytes[6] &= 0xE0;
             titleIDBytes[7] = 0;
             var newTitleID = titleIDBytes.ToHexString();
@@ -1038,6 +1013,7 @@ namespace SwitchSDTool
             UpdateStatus($@"{packed} NSPs packed");
         }
 
+        // ReSharper disable once UnusedMethodReturnValue.Local
         private bool PackNSP(string titleID)
         {
             return _cnmtFiles.TryGetValue(titleID, out var cnmt) && PackNSP(cnmt);
@@ -1045,7 +1021,7 @@ namespace SwitchSDTool
 
         private bool PackNSP(Cnmt cnmt)
         {
-            var tid = $"{cnmt.TitleId:x16}".ToByte();
+            byte[] tid = $"{cnmt.TitleId:x16}".ToByte();
 
             var result = cnmt.Type == TitleType.AddOnContent
                 ? _databaseTitleNames.TryGetValue(tid.ToHexString(), out var titleName) 
@@ -1059,30 +1035,40 @@ namespace SwitchSDTool
                     titleName = "Unknown";
             }
 
+            var nsxTitleName = titleName;
+            _tickets.TryGetValue($"{cnmt.TitleId:x16}", out var ticket);
+
             // ReSharper disable once SwitchStatementMissingSomeCases
             switch (cnmt.Type)
             {
                 case TitleType.Application:
                     titleName += $@" [{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
+                    nsxTitleName += $@" [{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsx";
                     break;
                 case TitleType.Patch:
                     titleName += $@" [UPD][{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
+                    nsxTitleName += $@" [{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsx";
                     break;
-                default:
+                case TitleType.AddOnContent:
                     titleName += $@" [DLC][{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsp";
+                    nsxTitleName += $@" [{cnmt.TitleId:X16}][v{cnmt.TitleVersion.Version}].nsx";
                     break;
+
+                default:
+                    UpdateStatus($"Cannot pack {titleName} - Content type not supported");
+                    return false;
             }
 
-            if (!_tickets.TryGetValue($"{cnmt.TitleId:x16}", out var ticket))
-            {
-                UpdateStatus($@"{titleName} cannot be packed. Ticket missing.");
-                return false;
-            }
+            
 
-            UpdateStatus($@"Packing {titleName}");
+            UpdateStatus($@"Packing {(ticket == null ? nsxTitleName : titleName)}");
 
-            var status = Pack(ticket, $"{cnmt.TitleId:x16}", titleName);
+            (bool, string[]) status = Pack(ticket, $"{cnmt.TitleId:x16}", titleName, nsxTitleName);
             AppendStatus(status.Item2[0],status.Item2.Skip(1).ToArray());
+            if (ticket == null && _titleReleaseDate.TryGetValue($"{cnmt.TitleId:x16}", out var releaseDate) && DateTime.Now >= releaseDate)
+            {
+                AppendStatus(" - The ticket for this title should be retrievable now.");
+            }
 
             return status.Item1;
         }
@@ -1104,8 +1090,8 @@ namespace SwitchSDTool
 
         private ulong _progressMod;
         private ulong _progressDivisor;
-        private Double _progressCurrent;
-        private Double _progressMax;
+        private double _progressCurrent;
+        private double _progressMax;
         private bool _displayPercentage;
         private void InitializeProgress(ulong max, bool percent=false)
         {
@@ -1116,7 +1102,7 @@ namespace SwitchSDTool
             try
             {
                 _progressDivisor = 1;
-                while (max > Int32.MaxValue)
+                while (max > int.MaxValue)
                 {
                     max /= 2;
                     _progressDivisor *= 2;
@@ -1142,9 +1128,12 @@ namespace SwitchSDTool
             tsProgress.Style = ProgressBarStyle.Marquee;
         }
 
+
+        private readonly List<ulong> _progressUpdates = new List<ulong>();
         private void UpdateProgress(ulong progress)
         {
             if (!tsProgress.Visible) return;
+            
 
             _progressCurrent += progress;
             if (_progressCurrent > _progressMax)
@@ -1154,6 +1143,20 @@ namespace SwitchSDTool
             _progressMod = progress % _progressDivisor;
 
             progress /= _progressDivisor;
+
+            if (txtGameInfo.InvokeRequired)
+            {
+                lock(_progressUpdates)
+                    _progressUpdates.Add(progress);
+                return;
+            }
+
+            lock (_progressUpdates)
+            {
+                progress += _progressUpdates.Aggregate(0UL, (a, c) => a + c);
+                _progressUpdates.Clear();
+            }
+
             if ((tsProgress.Value + (int) progress) > tsProgress.Maximum)
                 tsProgress.Value = tsProgress.Maximum;
             else
@@ -1190,7 +1193,7 @@ namespace SwitchSDTool
                 tsProgressText.Text = $@"{_progressCurrent / _progressMax:0.00 %} - ";
                 return;
             }
-            var designations = new List<string>
+            List<string> designations = new List<string>
             {
                 "",
                 "KiB",
@@ -1225,16 +1228,82 @@ namespace SwitchSDTool
             Application.DoEvents();
         }
 
-        public (bool, string[]) Pack(Ticket ticket, string cnmtTitleID, string baseTitle)
+        public (bool, string[]) ReplaceTitleKey(Ticket ticket, string baseTitle, string nsxTitle)
+        {
+            try
+            {
+                //Rename the file.
+                File.Move(Path.Combine(Configuration.Data.NSPPath, nsxTitle.StripIllegalCharacters()), Path.Combine(Configuration.Data.NSPPath, baseTitle.StripIllegalCharacters()));
+
+                using (var nsxfile = File.Open(Path.Combine(Configuration.Data.NSPPath, baseTitle.StripIllegalCharacters()), FileMode.Open, FileAccess.ReadWrite))
+                {
+                    byte[] nsxTitleKey = "5B5449544C45204B455920484552455D".ToByte();
+                    var keyFound = false;
+                    var offset = 0;
+
+                    using (var br = new BinaryReader(nsxfile, Encoding.UTF8, true))
+                    {
+                        while (nsxfile.Position != nsxfile.Length && !keyFound)
+                        {
+                            var data = br.ReadBytes(0x100010);
+                            if (nsxfile.Position != nsxfile.Length)
+                                nsxfile.Position -= 0x10; //Move back 16 bytes for the next pass.
+
+                            for (var i = 0; i < (data.Length - 0x10); i++)
+                            {
+                                var match = true;
+                                for (var j = 0; j < nsxTitleKey.Length && match; j++)
+                                {
+                                    match &= nsxTitleKey[j] == data[i + j];
+                                }
+
+                                if (!match) continue;
+
+                                keyFound = true;
+                                offset += i;
+                                break;
+                            }
+
+                            if (!keyFound)
+                                offset += 0x100000;
+                        }
+                    }
+
+                    if (!keyFound) return (false, new[] {" - NSX was not created with this tool"});
+
+                    nsxfile.Position = offset;
+                    using (var bw = new BinaryWriter(nsxfile))
+                    {
+                        bw.Write(ticket.TitleKey);
+                    }
+
+                    return (true, new[] {" - Key successfully added to NSX file."});
+                }
+            }
+            catch
+            {
+                return (false, new[] {" - Failed to add title key to NSX"});
+            }
+        }
+
+        public (bool, string[]) Pack(Ticket ticket, string cnmtTitleID, string baseTitle, string nsxTitle)
         {
             try
             {
                 try
                 {
                     if (File.Exists(Path.Combine(Configuration.Data.NSPPath, baseTitle.StripIllegalCharacters())))
-                        return (false, new [] {" - Already packed"} );
-                    if (!ticket.Anonymize())
+                        return (false, new[] { " - Already packed" });
+
+                    if (ticket != null && !ticket.Anonymize())
                         return (false, new[] { $" - {ticket.AnonymizeError}" });
+
+                    if (File.Exists(Path.Combine(Configuration.Data.NSPPath, nsxTitle.StripIllegalCharacters())))
+                    {
+                        return ticket != null 
+                            ? ReplaceTitleKey(ticket, baseTitle, nsxTitle) 
+                            : (false, new[] { " - Already packed" });
+                    }
                 }
                 catch
                 {
@@ -1245,7 +1314,7 @@ namespace SwitchSDTool
                 var cnmtNcaFile = _cnmtNcaFiles[cnmtTitleID];
 
 
-                var types = new List<CnmtContentType>
+                List<CnmtContentType> types = new List<CnmtContentType>
                 {
                     CnmtContentType.Program,
                     CnmtContentType.LegalHtml,
@@ -1254,42 +1323,66 @@ namespace SwitchSDTool
                     CnmtContentType.Control
                 };
 
-                var sdfiles = GetSDDirectories(_sdFileSystem);
+                string[] sdfiles = GetSDDirectories(_sdFileSystem);
 
-                var exitEntries = new List<CnmtContentEntry>();
+                List<CnmtContentEntry> exitEntries = new List<CnmtContentEntry>();
                 exitEntries.AddRange(from type in types
                     from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where !File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where Enumerable.All<string>(sdfiles, x => !x.ToLowerInvariant().EndsWith($"{entry.NcaId.ToHexString()}.nca"))
+                    where sdfiles.All(x => !x.ToLowerInvariant().EndsWith($"{entry.NcaId.ToHexString()}.nca"))
                     select entry);
                 if (exitEntries.Any())
                 {
                     return (false, new[]
                     {
                         " - Failed.",
-                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{String.Join(Environment.NewLine, exitEntries.Select(x => x.NcaId.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
+                        $@"Failed to pack because the following NCAs are missing:{Environment.NewLine}{string.Join(Environment.NewLine, exitEntries.Select(x => x.NcaId.ToHexString() + ".nca"))}{Environment.NewLine}{Environment.NewLine}"
                     });
                 }
 
                 types.Remove(CnmtContentType.Control);
                 types.Add(CnmtContentType.UpdatePatch);
 
-                var startingEntries = new List<CnmtContentEntry>();
-                var controlEntries = new List<CnmtContentEntry>();
+                List<CnmtContentEntry> startingEntries = new List<CnmtContentEntry>();
+                List<CnmtContentEntry> controlEntries = new List<CnmtContentEntry>();
                 startingEntries.AddRange(from type in types
                     from entry in cnmt.ContentEntries
                     where entry.Type == type
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where Enumerable.Any<string>(sdfiles, x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
                 controlEntries.AddRange(from entry in cnmt.ContentEntries
                     where entry.Type == CnmtContentType.Control
                     //where File.Exists(Path.Combine(Configuration.Data.Decryptionpath, entry.ID.ToHexString() + ".nca"))
-                    where Enumerable.Any<string>(sdfiles, x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
+                    where sdfiles.Any(x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"))
                     select entry);
 
-                var packFiles = new List<string>
+
+                if (ticket == null)
+                {
+                    baseTitle = nsxTitle;
+                    List<string> ncafilenames = sdfiles.Where(x => x.ToLowerInvariant().EndsWith(cnmtNcaFile.NcaId.ToHexString() + ".nca")).ToList();
+                    ncafilenames.AddRange(sdfiles.Where(x => cnmt.ContentEntries.Any(y => x.ToLowerInvariant().EndsWith(y.NcaId.ToHexString() + ".nca"))));
+
+                    foreach (var ncafilename in ncafilenames)
+                    {
+                        using (var ncafile = new Nca(_keyset, OpenSplitNcaStream(ncafilename), false))
+                        {
+                            if (!ncafile.HasRightsId) continue;
+                            ticket = new Ticket(ncafile.Header.RightsId.ToHexString(), "5B5449544C45204B455920484552455D");
+                            break;
+                        }
+                    }
+
+                    if (ticket == null)
+                    {
+                        return (false, new [] { " - Couldn't create blank .nsx ticket" });
+                    }
+                }
+
+
+                List<string> packFiles = new List<string>
                 {
                     ticket.RightsID.ToHexString() + ".cert",
                     ticket.RightsID.ToHexString() + ".tik",
@@ -1299,7 +1392,7 @@ namespace SwitchSDTool
                 packFiles.InsertRange(2, from entry in startingEntries select entry.NcaId.ToHexString() + ".nca");
                 packFiles.AddRange(from entry in controlEntries select entry.NcaId.ToHexString() + ".nca");
 
-                var fileSizes = new List<ulong>
+                List<ulong> fileSizes = new List<ulong>
                 {
                     0x700,
                     0x2C0,
@@ -1315,11 +1408,11 @@ namespace SwitchSDTool
                 {
                     using (var sw = new BinaryWriter(nspFile))
                     {
-                        var stringTable = String.Join("\0", packFiles);
+                        var stringTable = string.Join("\0", packFiles);
                         var headerSize = 0x10 + (packFiles.Count * 0x18) + stringTable.Length;
                         var remainder = 0x10 - (headerSize % 0x10);
 
-                        var stringTableOffsets = new List<uint>();
+                        List<uint> stringTableOffsets = new List<uint>();
                         ulong offset = 0;
                         foreach (var f in packFiles)
                         {
@@ -1327,7 +1420,7 @@ namespace SwitchSDTool
                             offset += (ulong) (f.Length + 1);
                         }
 
-                        var fileOffsets = new List<ulong>();
+                        List<ulong> fileOffsets = new List<ulong>();
                         offset = 0;
                         foreach (var f in fileSizes)
                         {
@@ -1337,7 +1430,7 @@ namespace SwitchSDTool
 
                         InitializeProgress(offset);
 
-                        sw.Write(new char[] {'P', 'F', 'S', '0'});
+                        sw.Write(new[] {'P', 'F', 'S', '0'});
                         sw.Write(BitConverter.GetBytes(packFiles.Count));
                         sw.Write(BitConverter.GetBytes(stringTable.Length + remainder));
                         sw.Write(new byte[4]);
@@ -1371,15 +1464,15 @@ namespace SwitchSDTool
 
                         foreach (var entry in startingEntries)
                         {
-                            WriteNCAtoNSP(nspFile, sw, entry);
+                            WriteNcaToNSP(nspFile, sw, entry);
                         }
 
-                        WriteNCAtoNSP(nspFile, sw, cnmtNcaFile);
+                        WriteNcaToNSP(nspFile, sw, cnmtNcaFile);
                         //sw.Write(xml);
 
                         foreach (var entry in controlEntries)
                         {
-                            WriteNCAtoNSP(nspFile, sw, entry);
+                            WriteNcaToNSP(nspFile, sw, entry);
                         }
 
                     }
@@ -1404,10 +1497,10 @@ namespace SwitchSDTool
             return (true, new [] { " - Completed" });
         }
 
-        private void WriteNCAtoNSP(FileStream nspFile, BinaryWriter sw, CnmtContentEntry entry)
+        private void WriteNcaToNSP(Stream nspFile, BinaryWriter sw, CnmtContentEntry entry)
         {
             var hash = SHA256.Create();
-            var filename = Enumerable.FirstOrDefault<string>(GetSDDirectories(_sdFileSystem), x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"));
+            var filename = GetSDDirectories(_sdFileSystem).FirstOrDefault(x => x.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"));
             if(filename == null)
                 throw new Exception($@"{entry.NcaId.ToHexString()}.nca does not exist.");
 
@@ -1418,10 +1511,9 @@ namespace SwitchSDTool
 
                 using (var sr = new BinaryReader(ncaFile))
                 {
-                    byte[] bytes = new byte[0];
                     while (sr.BaseStream.Position != sr.BaseStream.Length)
                     {
-                        bytes = sr.ReadBytes((int)Math.Min(sr.BaseStream.Length - sr.BaseStream.Position, 0x100000));
+                        byte[] bytes = sr.ReadBytes((int)Math.Min(sr.BaseStream.Length - sr.BaseStream.Position, 0x100000));
                         if (bytes.Length <= 0) continue;
 
                         sw.Write(bytes);
@@ -1440,27 +1532,23 @@ namespace SwitchSDTool
 
         private void btnParseNCA_Click(object sender, EventArgs e)
         {
-            /*if (_sdKey == null)
-            {
-                btnFindSDKey_Click(null, null);
-            }*/
-            if (/*_sdKey == null ||*/ !CheckKeys()) return;
+            if (!CheckKeys()) return;
            
-            UpdateStatus($@"Parsing Decrypted NCA files");
+            UpdateStatus(@"Parsing Decrypted NCA files");
 
-            var ncadir = Path.Combine("tools", "nca");
-            if (!Directory.Exists(ncadir))
-                Directory.CreateDirectory(ncadir);
+            var ncaDir = Path.Combine("tools", "nca");
+            if (!Directory.Exists(ncaDir))
+                Directory.CreateDirectory(ncaDir);
 
             if (!Directory.Exists(Configuration.Data.Decryptionpath))
                 Directory.CreateDirectory(Configuration.Data.Decryptionpath);
 
-            var ncaFiles = Configuration.GetDecryptedNCAFiles;
+            string[] ncaFiles = Configuration.GetDecryptedNCAFiles;
             InitializeProgress((ulong)ncaFiles.Length);
             ClearGameImageLists();
 
-            var controls = new List<Cnmt>();
-            var metas = new List<Cnmt>();
+            List<Cnmt> controls = new List<Cnmt>();
+            List<Cnmt> metas = new List<Cnmt>();
 
             for (var j = 0; j < ncaFiles.Length; j++)
             {
@@ -1558,10 +1646,8 @@ namespace SwitchSDTool
 
         private void txtRSAKEK_TextChanged(object sender, EventArgs e)
         {
-            if (Configuration.VerifyETicketRSAKEK()) return;
-            Configuration.Data.ETicketRSAKEK = txtRSAKEK.Text;
-            if (!Configuration.VerifyETicketRSAKEK()) return;
-            UpdateStatus("ETicket RSA KEK is correct.");
+            if (txtRSAKEK.Text.All(x => "0123456789ABCDEFabcdef".Contains(x)) && txtRSAKEK.Text.Length == 32)
+                Configuration.Data.ETicketRSAKEK = txtRSAKEK.Text;
         }
 
         private void btnSmallerIcon_Click(object sender, EventArgs e)
@@ -1579,6 +1665,7 @@ namespace SwitchSDTool
             ImageList imagelist;
             switch (size)
             {
+                // ReSharper disable ConditionIsAlwaysTrueOrFalse
                 case GameIconSize.ExtraSmall when larger.HasValue && !larger.Value:
                 case GameIconSize.Small when larger.HasValue && !larger.Value:
                 case GameIconSize.ExtraSmall when !larger.HasValue:
@@ -1619,6 +1706,7 @@ namespace SwitchSDTool
                     if(larger.HasValue)
                         return;
                     goto defaultIconSize;
+                // ReSharper restore ConditionIsAlwaysTrueOrFalse
             }
             Configuration.Data.GameIconSize = size;
 
@@ -1670,10 +1758,10 @@ namespace SwitchSDTool
         {
             txtMessage.Text = _messageBox.TryGetValue(listStatus.SelectedIndex, out var message) && message != null
                 ? message
-                : String.Empty;
+                : string.Empty;
 
-            txtMessage.Visible = txtMessage.Text != String.Empty;
-            scGameIconInfo.Visible = txtMessage.Text == String.Empty;
+            txtMessage.Visible = txtMessage.Text != string.Empty;
+            scGameIconInfo.Visible = txtMessage.Text == string.Empty;
         }
 
         private void btnDeleteFromSD_Click(object sender, EventArgs e)
@@ -1711,19 +1799,19 @@ namespace SwitchSDTool
 
         private void DeleteSDFile(Cnmt cnmt, TreeNode childNode)
         {
-            var sdcard = GetSDDirectories(_sdFileSystem);
+            string[] sdcard = GetSDDirectories(_sdFileSystem);
             var deleteSuccess = true;
             UpdateStatus($@"Deleting {childNode.Parent.Text} - {childNode.Text}");
             var tid = $"{cnmt.TitleId:x16}";
-            var entries = cnmt.ContentEntries.ToList();
+            List<CnmtContentEntry> entries = cnmt.ContentEntries.ToList();
             entries.Add(_cnmtNcaFiles[tid]);
             foreach (var entry in entries)
             {
-                var ncafile = Enumerable.FirstOrDefault<string>(sdcard, x => x.ToLowerInvariant().Contains(entry.NcaId.ToHexString()));
+                var ncafile = sdcard.FirstOrDefault(x => x.ToLowerInvariant().Contains(entry.NcaId.ToHexString()));
                 if (ncafile != null && _sdFileSystem is FileSystem)
-                    deleteSuccess &= DeleteSDNCA(ncafile);
+                    deleteSuccess &= DeleteSdNca(ncafile);
                 else
-                    deleteSuccess &= DeleteLocalNCA(entry.NcaId.ToHexString() + ".nca");
+                    deleteSuccess &= DeleteLocalNca(entry.NcaId.ToHexString() + ".nca");
             }
 
             _cnmtFiles.Remove(tid);
@@ -1734,33 +1822,33 @@ namespace SwitchSDTool
                 : " - Failed, Check message box to see what files could not be deleted");
         }
 
-        private bool DeleteSDNCA(string ncafile)
+        private bool DeleteSdNca(string ncaFile)
         {
-            bool result = true;
+            var result = true;
             try
             {
-                foreach (var file in Directory.GetFiles(ncafile))
+                foreach (var file in Directory.GetFiles(ncaFile))
                     File.Delete(file);
-                Directory.Delete(ncafile);
+                Directory.Delete(ncaFile);
                 try
                 {
-                    var ncafileroot = Path.GetDirectoryName(ncafile);
-                    if (Directory.GetDirectories(ncafileroot).Length == 0)
+                    var ncafileroot = Path.GetDirectoryName(ncaFile);
+                    if (ncafileroot != null && Directory.GetDirectories(ncafileroot).Length == 0)
                         Directory.Delete(ncafileroot);
                 }
                 catch (Exception ex)
                 {
-                    AppendStatus(String.Empty,
-                        $@"[WARNING] - Failed to delete directory {Path.GetDirectoryName(ncafile)}:{Environment.NewLine}",
+                    AppendStatus(string.Empty,
+                        $@"[WARNING] - Failed to delete directory {Path.GetDirectoryName(ncaFile)}:{Environment.NewLine}",
                         $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 }
 
-                result &= DeleteLocalNCA(Path.GetFileName(ncafile));
+                result &= DeleteLocalNca(Path.GetFileName(ncaFile));
             }
             catch (Exception ex)
             {
-                AppendStatus(String.Empty,
-                    $@"[FATAL] - Failed to delete SD Card copy of {ncafile} due to an exception:{Environment.NewLine}",
+                AppendStatus(string.Empty,
+                    $@"[FATAL] - Failed to delete SD Card copy of {ncaFile} due to an exception:{Environment.NewLine}",
                     $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 return false;
             }
@@ -1768,20 +1856,20 @@ namespace SwitchSDTool
             return result;
         }
 
-        private bool DeleteLocalNCA(string ncafilename)
+        private bool DeleteLocalNca(string ncaFileName)
         {
             if (!cbDeleteLocal.Checked)
                 return true;
 
             try
             {
-                if (File.Exists(Path.Combine(Configuration.Data.Decryptionpath, ncafilename)))
-                    File.Delete(Path.Combine(Configuration.Data.Decryptionpath, ncafilename));
+                if (File.Exists(Path.Combine(Configuration.Data.Decryptionpath, ncaFileName)))
+                    File.Delete(Path.Combine(Configuration.Data.Decryptionpath, ncaFileName));
             }
             catch (Exception ex)
             {
-                AppendStatus(String.Empty,
-                    $@"[FATAL] - Failed to delete local copy of {ncafilename} due to an exception:{Environment.NewLine}",
+                AppendStatus(string.Empty,
+                    $@"[FATAL] - Failed to delete local copy of {ncaFileName} due to an exception:{Environment.NewLine}",
                     $@"{ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}");
                 return false;
             }
@@ -1809,20 +1897,20 @@ namespace SwitchSDTool
             var result = _controlNACP.TryGetValue(tvGames.SelectedNode?.ImageIndex ?? 0, out var nacp);
             var data = result
                 ? nacp.GetTitleNameIcon(tvLanguage)
-                : (String.Empty, String.Empty, String.Empty, String.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
-            var languages = result
+                : (string.Empty, string.Empty, string.Empty, string.Empty, Resources.Ultra_microSDXC_UHS_I_A1_front);
+            List<Languages> languages = result
                 ? nacp.Languages
                 : new List<Languages>();
 
             pbGameIcon.Image = data.Item5;
             txtGameInfo.Text = !result 
-                ? String.Empty
+                ? string.Empty
                     : $@"Game: {data.Item1}{Environment.NewLine
-                    }Devloper: {data.Item2}{Environment.NewLine
+                    }Developer: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
                     }Base Title ID: {data.Item4}{Environment.NewLine}";
 
-            txtGameInfo.Text += AddNCAMetaInfo();
+            txtGameInfo.Text += AddNcaMetaInfo();
 
             if (_previouslySelectedParentNode == (tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode)) return;
             _previouslySelectedParentNode = tvGames.SelectedNode?.Parent ?? tvGames.SelectedNode;
@@ -1843,7 +1931,7 @@ namespace SwitchSDTool
         {
             toolTip1.RemoveAll();
             var selNode = tvGames.GetNodeAt(tvGames.PointToClient(Cursor.Position));
-            if (!String.IsNullOrEmpty((selNode?.Parent ?? selNode)?.ToolTipText))
+            if (!string.IsNullOrEmpty((selNode?.Parent ?? selNode)?.ToolTipText))
             {
                 toolTip1.SetToolTip(tvGames, (selNode.Parent ?? selNode).ToolTipText);
             }
@@ -1861,7 +1949,7 @@ namespace SwitchSDTool
                 var data = nacp.GetTitleNameIcon(tvLanguage);
                 pbGameIcon.Image = data.Item5;
                 txtGameInfo.Text = $@"Game: {data.Item1}{Environment.NewLine
-                    }Devloper: {data.Item2}{Environment.NewLine
+                    }Developer: {data.Item2}{Environment.NewLine
                     }Version: {data.Item3}{Environment.NewLine
                     }Base Title ID: {data.Item4}{Environment.NewLine}";
             }
@@ -1870,18 +1958,18 @@ namespace SwitchSDTool
                 var index = (int) languageNode.Tag;
                 pbGameIcon.Image = nacp.Icons[index];
                 txtGameInfo.Text = $@"Game: {nacp.TitleNames[index]}{Environment.NewLine
-                    }Devloper: {nacp.DeveloperNames[index]}{Environment.NewLine
+                    }Developer: {nacp.DeveloperNames[index]}{Environment.NewLine
                     }Version: {nacp.Version}{Environment.NewLine
                     }Base Title ID: {nacp.BaseTitleID}{Environment.NewLine}";
             }
 
-            txtGameInfo.Text += AddNCAMetaInfo();
+            txtGameInfo.Text += AddNcaMetaInfo();
         }
 
-        private string AddNCAMetaInfo()
+        private string AddNcaMetaInfo()
         {
             if(tvGames.SelectedNode?.Parent == null)
-                return String.Empty;
+                return string.Empty;
 
             var titlekey = $@"Title Key: Not Available{Environment.NewLine}";
             if (_tickets.TryGetValue((string) tvGames.SelectedNode.Tag, out var ticket) && ticket.Anonymize())
@@ -1893,17 +1981,17 @@ namespace SwitchSDTool
 
             var output = $@"{releasedate}{Environment.NewLine}";
             var cnmt = _cnmtFiles[(string) tvGames.SelectedNode.Tag];
-            var entries = cnmt.ContentEntries.ToList();
+            List<CnmtContentEntry> entries = cnmt.ContentEntries.ToList();
             entries.Insert(0, _cnmtNcaFiles[$"{cnmt.TitleId:x16}"]);
 
             output += $@"Title ID: {tvGames.SelectedNode.Tag}{Environment.NewLine}";
             output += titlekey;
             output += $@"Type: {cnmt.Type}{Environment.NewLine}{Environment.NewLine}";
             
-            var sdFiles = GetSDDirectories(_sdFileSystem);
+            string[] sdFiles = GetSDDirectories(_sdFileSystem);
             foreach (var entry in entries)
             {
-                if (Enumerable.All<string>(sdFiles, x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))) continue;
+                if (sdFiles.All(x => !x.EndsWith($"{entry.NcaId.ToHexString()}.nca"))) continue;
                 output += $@"{entry.NcaId.ToHexString() + ".nca"} ({entry.Type}){Environment.NewLine}";
             }
 
@@ -1925,7 +2013,7 @@ namespace SwitchSDTool
             var item = cbRSAKey.SelectedItem;
             if (item is string serialNumber && Configuration.Data.RSAKeys.TryGetValue(serialNumber, out var keys))
             {
-                var split = keys.Split(',');
+                string[] split = keys.Split(',');
                 btnLoadRSAKEK.Enabled = !(split.Length == 3 && split.All(x => x.ToByte().Length != 0));
 
                 if (!btnLoadRSAKEK.Enabled)
@@ -1946,17 +2034,17 @@ namespace SwitchSDTool
 
         private void btnGetTitleKeys_Click(object sender, EventArgs e)
         {
-            if (String.IsNullOrEmpty(Configuration.Data.TitleKeyDataBaseURL)) return;
+            if (string.IsNullOrEmpty(Configuration.Data.TitleKeyDataBaseURL)) return;
             try
             {
                 UpdateStatus("Retrieving Title Key database");
                 var count = _tickets.Count;
-                HttpWebRequest myHttpWebRequest =
+                var myHttpWebRequest =
                     (HttpWebRequest) WebRequest.Create(Configuration.Data.TitleKeyDataBaseURL);
                 myHttpWebRequest.MaximumAutomaticRedirections = 1;
                 myHttpWebRequest.AllowAutoRedirect = true;
                 myHttpWebRequest.Timeout = 30000;
-                var httpWebResponseAsync = myHttpWebRequest.GetResponseAsync();
+                Task<WebResponse> httpWebResponseAsync = myHttpWebRequest.GetResponseAsync();
 
                 SpinProgressBar();
                 while (!httpWebResponseAsync.IsCanceled && !httpWebResponseAsync.IsCompleted &&
@@ -1973,7 +2061,7 @@ namespace SwitchSDTool
                     HideProgress();
                     return;
                 }
-                HttpWebResponse myHttpWebResponse = (HttpWebResponse)httpWebResponseAsync.Result;
+                var myHttpWebResponse = (HttpWebResponse)httpWebResponseAsync.Result;
 
                 if (myHttpWebResponse.StatusCode == HttpStatusCode.OK)
                 {
@@ -1990,12 +2078,12 @@ namespace SwitchSDTool
                             var line = sr.ReadLine();
                             if (line == null) continue;
 
-                            var split = line.Split('|');
-                            if (split.Length < 3 || split[0].ToByte().Length != 16 || split[1].ToByte().Length != 16)
+                            string[] split = line.Split('|');
+                            if (split.Length < 3 || (split[0].ToByte()?.Length ?? 0) != 16 || (split[1].ToByte()?.Length ?? 0) != 16)
                                 continue;
-                            split[2] = String.Join("|", split.Skip(2));
+                            split[2] = string.Join("|", split.Skip(2));
 
-                            var typeBytes = split[0].Substring(12, 4).ToByte();
+                            byte[] typeBytes = split[0].Substring(12, 4).ToByte();
                             typeBytes[0] &= 0x1F;
                             if (typeBytes[0] == 0x08 && typeBytes[1] == 0x00)
                                 continue;   //Do NOT ADD update title keys to the ticket list. the resulting tickets won't be signed,
@@ -2026,25 +2114,26 @@ namespace SwitchSDTool
 
         private void btnGetTitleKeys_Click_1(object sender, EventArgs e)
         {
-            var titlekeydump = String.Empty;
+            var titlekeydump = string.Empty;
 
             UpdateStatus("Extracting Personal Title Key log");
-            var tickets = _personalTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0,16))).ToArray();
+
+            KeyValuePair<string, string>[] tickets = _personalTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0,16))).ToArray();
             InitializeProgress((ulong) tickets.Length);
 
             for(var i = 0; i < tickets.Length; i++)
             {
                 UpdateProgress(1);
-                var ticket = tickets[i];
+                KeyValuePair<string, string> ticket = tickets[i];
 
                 titlekeydump += $"Ticket {i}:{Environment.NewLine}";
                 titlekeydump += $"    Rights ID: {ticket.Key}{Environment.NewLine}";
                 titlekeydump += $"    Title ID:  {ticket.Key.Substring(0,16)}{Environment.NewLine}";
-                titlekeydump += $"    Titlekey:  {ticket.Value}{Environment.NewLine}";
+                titlekeydump += $"    Title key:  {ticket.Value}{Environment.NewLine}";
             }
 
             HideProgress();
-            if (titlekeydump == String.Empty)
+            if (titlekeydump == string.Empty)
             {
                 AppendStatus(_databaseTitleNames.Count == 0 
                     ? " - No Title keys to show" 
@@ -2070,17 +2159,29 @@ namespace SwitchSDTool
             var nandsystemfilename = "C:\\Users\\CaitSith2\\Desktop\\SD Swap\\Switch\\Backup\\rawnand.bin";
             _encStream?.Dispose();
             _encStream = File.Open(nandsystemfilename, FileMode.Open, FileAccess.Read);
-            _keyset.bis_keys[2] = "***REMOVED***".ToByte();
-            _keyset.bis_keys[3] = "***REMOVED***".ToByte();
+
+
+            try{_encStream.Position = -1; }
+            catch (Exception ex) { UpdateStatus("Failed to set position before beginning of file using Position = -1",$"{ex.GetType()}: {ex.Message}{Environment.NewLine}{ex.StackTrace}"); }
+            try{_encStream.Seek(-_encStream.Length - 1, SeekOrigin.End);}
+            catch (Exception ex) { UpdateStatus("Failed to set position before beginning of file using Seek(-Length-1, SeekOrigin.End)", $"{ex.GetType()}: {ex.Message}{Environment.NewLine}{ex.StackTrace}"); }
+
+            _encStream.Position = 0;
+            byte[] biskey = File.ReadAllBytes("biskey.bin");
+
+            _keyset.bis_keys[2] = biskey;
+            _keyset.bis_keys[3] = biskey;
             var nand = new Nand(_encStream, _keyset);
             _sdFileSystem = nand.OpenUserPartition();
             _systemNandFileSystem = nand.OpenSystemPartition();
+
+
 
             /*using ()
             {
                 
 
-                /*var xts = XtsAes128.Create("***REMOVED***".ToByte());
+                /*var xts = XtsAes128.Create(biskey);
                 var decStream = new RandomAccessSectorStream(new XtsSectorStream(encStream, xts, 0x4000, 0), true);
                 FatFileSystem fat = new FatFileSystem(decStream, Ownership.None);
                 NandPartition system = new NandPartition(fat);
@@ -2088,6 +2189,7 @@ namespace SwitchSDTool
             }*/
         }
 
+        // ReSharper disable once UnusedMember.Local
         private void ListFiles(NandPartition partition, string path)
         {
             UpdateStatus(path);
@@ -2099,11 +2201,39 @@ namespace SwitchSDTool
 
         private void button3_Click(object sender, EventArgs e)
         {
-            for (var i = 0; i < 100; i++)
+            /*for (var i = 0; i < 100; i++)
             {
                 button1_Click(null, null);
                 UpdateStatus($"Iteration {i + 1} of 100");
+            }*/
+
+            UpdateStatus("Extracting Savefiles");
+            foreach (var file in _systemNandFileSystem.GetFileSystemEntries("save", "*"))
+            {
+                
+                
+                try
+                {
+                    var savefilename = Path.GetFileName(file);
+                    var savewritepath = $"SYSTEM-SAVE\\{savefilename}";
+                    UpdateStatus($"Extracting \"{savefilename}\" - ");
+                    using (var stream = _systemNandFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read))
+                    {
+                        var savefiledata = new Savefile(stream);
+                        savefiledata.Extract(savewritepath);
+                    }
+                    AppendStatus("Done.");
+                }
+                catch (Exception ex)
+                {
+                    if (ex.InnerException != null)
+                        AppendStatus(ex.Message, $"{ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                    else
+                        AppendStatus($"Unknown error in {Path.GetFileName(file)}", $"{ex.GetType().Name}: {ex.Message}");
+                }
             }
+            UpdateStatus("Done");
+
         }
 
         private void btnExtractCommonKeys_Click(object sender, EventArgs e)
@@ -2112,18 +2242,18 @@ namespace SwitchSDTool
             var formattedtitlekeydump = string.Empty;
 
             UpdateStatus("Extracting Common Title Key log");
-            var tickets = _commonTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0, 13) + "000")).ToArray();
+            KeyValuePair<string, string>[] tickets = _commonTickets.ToList().Where(x => !_databaseTitleNames.ContainsKey(x.Key.Substring(0, 13) + "000")).ToArray();
             InitializeProgress((ulong)tickets.Length);
 
             for (var i = 0; i < tickets.Length; i++)
             {
                 UpdateProgress(1);
-                var ticket = tickets[i];
+                KeyValuePair<string, string> ticket = tickets[i];
 
                 titlekeydump += $"Ticket {i}:{Environment.NewLine}";
                 titlekeydump += $"    Rights ID: {ticket.Key}{Environment.NewLine}";
                 titlekeydump += $"    Title ID:  {ticket.Key.Substring(0, 16)}{Environment.NewLine}";
-                titlekeydump += $"    Titlekey:  {ticket.Value}{Environment.NewLine}";
+                titlekeydump += $"    Title key:  {ticket.Value}{Environment.NewLine}";
 
                 if (!_titleNames.TryGetValue(ticket.Key.Substring(0, 13) + "000", out var gameTitle))
                     gameTitle = "Unknown";
@@ -2131,7 +2261,7 @@ namespace SwitchSDTool
             }
 
             HideProgress();
-            if (titlekeydump == String.Empty)
+            if (titlekeydump == string.Empty)
             {
                 AppendStatus(_databaseTitleNames.Count == 0
                     ? " - No Title keys to show"

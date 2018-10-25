@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using libhac;
+using LibHac;
 using SwitchSDTool.Properties;
 
 namespace SwitchSDTool
@@ -40,21 +40,21 @@ namespace SwitchSDTool
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.TreeNode treeNode16 = new System.Windows.Forms.TreeNode("American English");
-            System.Windows.Forms.TreeNode treeNode17 = new System.Windows.Forms.TreeNode("British English");
-            System.Windows.Forms.TreeNode treeNode18 = new System.Windows.Forms.TreeNode("Japanese");
-            System.Windows.Forms.TreeNode treeNode19 = new System.Windows.Forms.TreeNode("French");
-            System.Windows.Forms.TreeNode treeNode20 = new System.Windows.Forms.TreeNode("German");
-            System.Windows.Forms.TreeNode treeNode21 = new System.Windows.Forms.TreeNode("Latin American Spanish");
-            System.Windows.Forms.TreeNode treeNode22 = new System.Windows.Forms.TreeNode("Spanish");
-            System.Windows.Forms.TreeNode treeNode23 = new System.Windows.Forms.TreeNode("Italian");
-            System.Windows.Forms.TreeNode treeNode24 = new System.Windows.Forms.TreeNode("Dutch");
-            System.Windows.Forms.TreeNode treeNode25 = new System.Windows.Forms.TreeNode("Canadian French");
-            System.Windows.Forms.TreeNode treeNode26 = new System.Windows.Forms.TreeNode("Portuguese");
-            System.Windows.Forms.TreeNode treeNode27 = new System.Windows.Forms.TreeNode("Russian");
-            System.Windows.Forms.TreeNode treeNode28 = new System.Windows.Forms.TreeNode("Korean");
-            System.Windows.Forms.TreeNode treeNode29 = new System.Windows.Forms.TreeNode("Taiwanese");
-            System.Windows.Forms.TreeNode treeNode30 = new System.Windows.Forms.TreeNode("Chinese");
+            System.Windows.Forms.TreeNode treeNode1 = new System.Windows.Forms.TreeNode("American English");
+            System.Windows.Forms.TreeNode treeNode2 = new System.Windows.Forms.TreeNode("British English");
+            System.Windows.Forms.TreeNode treeNode3 = new System.Windows.Forms.TreeNode("Japanese");
+            System.Windows.Forms.TreeNode treeNode4 = new System.Windows.Forms.TreeNode("French");
+            System.Windows.Forms.TreeNode treeNode5 = new System.Windows.Forms.TreeNode("German");
+            System.Windows.Forms.TreeNode treeNode6 = new System.Windows.Forms.TreeNode("Latin American Spanish");
+            System.Windows.Forms.TreeNode treeNode7 = new System.Windows.Forms.TreeNode("Spanish");
+            System.Windows.Forms.TreeNode treeNode8 = new System.Windows.Forms.TreeNode("Italian");
+            System.Windows.Forms.TreeNode treeNode9 = new System.Windows.Forms.TreeNode("Dutch");
+            System.Windows.Forms.TreeNode treeNode10 = new System.Windows.Forms.TreeNode("Canadian French");
+            System.Windows.Forms.TreeNode treeNode11 = new System.Windows.Forms.TreeNode("Portuguese");
+            System.Windows.Forms.TreeNode treeNode12 = new System.Windows.Forms.TreeNode("Russian");
+            System.Windows.Forms.TreeNode treeNode13 = new System.Windows.Forms.TreeNode("Korean");
+            System.Windows.Forms.TreeNode treeNode14 = new System.Windows.Forms.TreeNode("Taiwanese");
+            System.Windows.Forms.TreeNode treeNode15 = new System.Windows.Forms.TreeNode("Chinese");
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.btnPackNSP = new System.Windows.Forms.Button();
             this.btnDecryptNCA = new System.Windows.Forms.Button();
@@ -76,6 +76,7 @@ namespace SwitchSDTool
             this.listStatus = new System.Windows.Forms.ListBox();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.splitContainerTop = new System.Windows.Forms.SplitContainer();
+            this.btnExtractCommonKeys = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
             this.button2 = new System.Windows.Forms.Button();
             this.btnGetTitleKeys = new System.Windows.Forms.Button();
@@ -110,7 +111,6 @@ namespace SwitchSDTool
             this.ilGamesLarge = new System.Windows.Forms.ImageList(this.components);
             this.ilGamesExtraLarge = new System.Windows.Forms.ImageList(this.components);
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.btnExtractCommonKeys = new System.Windows.Forms.Button();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -343,6 +343,16 @@ namespace SwitchSDTool
             this.splitContainerTop.SplitterDistance = 549;
             this.splitContainerTop.TabIndex = 14;
             // 
+            // btnExtractCommonKeys
+            // 
+            this.btnExtractCommonKeys.Location = new System.Drawing.Point(4, 167);
+            this.btnExtractCommonKeys.Name = "btnExtractCommonKeys";
+            this.btnExtractCommonKeys.Size = new System.Drawing.Size(141, 31);
+            this.btnExtractCommonKeys.TabIndex = 21;
+            this.btnExtractCommonKeys.Text = "Extract Common_keys.txt";
+            this.btnExtractCommonKeys.UseVisualStyleBackColor = true;
+            this.btnExtractCommonKeys.Click += new System.EventHandler(this.btnExtractCommonKeys_Click);
+            // 
             // button3
             // 
             this.button3.Location = new System.Drawing.Point(366, 166);
@@ -351,7 +361,6 @@ namespace SwitchSDTool
             this.button3.TabIndex = 20;
             this.button3.Text = "button3";
             this.button3.UseVisualStyleBackColor = true;
-            this.button3.Visible = false;
             this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // button2
@@ -362,7 +371,6 @@ namespace SwitchSDTool
             this.button2.TabIndex = 19;
             this.button2.Text = "button2";
             this.button2.UseVisualStyleBackColor = true;
-            this.button2.Visible = false;
             this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
             // btnGetTitleKeys
@@ -603,67 +611,67 @@ namespace SwitchSDTool
             this.tvLanguage.ImageList = this.ilLanguage;
             this.tvLanguage.Location = new System.Drawing.Point(0, 26);
             this.tvLanguage.Name = "tvLanguage";
-            treeNode16.Name = "nodeAmericanEnglish";
-            treeNode16.Tag = "0";
-            treeNode16.Text = "American English";
-            treeNode17.Name = "nodeBritishEnglish";
-            treeNode17.Tag = "1";
-            treeNode17.Text = "British English";
-            treeNode18.Name = "nodeJapanese";
-            treeNode18.Tag = "2";
-            treeNode18.Text = "Japanese";
-            treeNode19.Name = "nodeFrench";
-            treeNode19.Tag = "3";
-            treeNode19.Text = "French";
-            treeNode20.Name = "nodeGerman";
-            treeNode20.Tag = "4";
-            treeNode20.Text = "German";
-            treeNode21.Name = "nodeLatinAmericanSpanish";
-            treeNode21.Tag = "5";
-            treeNode21.Text = "Latin American Spanish";
-            treeNode22.Name = "nodeSpanish";
-            treeNode22.Tag = "6";
-            treeNode22.Text = "Spanish";
-            treeNode23.Name = "nodeItalian";
-            treeNode23.Tag = "7";
-            treeNode23.Text = "Italian";
-            treeNode24.Name = "nodeDutch";
-            treeNode24.Tag = "8";
-            treeNode24.Text = "Dutch";
-            treeNode25.Name = "nodeCanadianFrench";
-            treeNode25.Tag = "9";
-            treeNode25.Text = "Canadian French";
-            treeNode26.Name = "nodePortuguese";
-            treeNode26.Tag = "10";
-            treeNode26.Text = "Portuguese";
-            treeNode27.Name = "nodeRussian";
-            treeNode27.Tag = "11";
-            treeNode27.Text = "Russian";
-            treeNode28.Name = "nodeKorean";
-            treeNode28.Tag = "12";
-            treeNode28.Text = "Korean";
-            treeNode29.Name = "nodeTaiwanese";
-            treeNode29.Tag = "13";
-            treeNode29.Text = "Taiwanese";
-            treeNode30.Name = "nodeChinese";
-            treeNode30.Tag = "14";
-            treeNode30.Text = "Chinese";
+            treeNode1.Name = "nodeAmericanEnglish";
+            treeNode1.Tag = "0";
+            treeNode1.Text = "American English";
+            treeNode2.Name = "nodeBritishEnglish";
+            treeNode2.Tag = "1";
+            treeNode2.Text = "British English";
+            treeNode3.Name = "nodeJapanese";
+            treeNode3.Tag = "2";
+            treeNode3.Text = "Japanese";
+            treeNode4.Name = "nodeFrench";
+            treeNode4.Tag = "3";
+            treeNode4.Text = "French";
+            treeNode5.Name = "nodeGerman";
+            treeNode5.Tag = "4";
+            treeNode5.Text = "German";
+            treeNode6.Name = "nodeLatinAmericanSpanish";
+            treeNode6.Tag = "5";
+            treeNode6.Text = "Latin American Spanish";
+            treeNode7.Name = "nodeSpanish";
+            treeNode7.Tag = "6";
+            treeNode7.Text = "Spanish";
+            treeNode8.Name = "nodeItalian";
+            treeNode8.Tag = "7";
+            treeNode8.Text = "Italian";
+            treeNode9.Name = "nodeDutch";
+            treeNode9.Tag = "8";
+            treeNode9.Text = "Dutch";
+            treeNode10.Name = "nodeCanadianFrench";
+            treeNode10.Tag = "9";
+            treeNode10.Text = "Canadian French";
+            treeNode11.Name = "nodePortuguese";
+            treeNode11.Tag = "10";
+            treeNode11.Text = "Portuguese";
+            treeNode12.Name = "nodeRussian";
+            treeNode12.Tag = "11";
+            treeNode12.Text = "Russian";
+            treeNode13.Name = "nodeKorean";
+            treeNode13.Tag = "12";
+            treeNode13.Text = "Korean";
+            treeNode14.Name = "nodeTaiwanese";
+            treeNode14.Tag = "13";
+            treeNode14.Text = "Taiwanese";
+            treeNode15.Name = "nodeChinese";
+            treeNode15.Tag = "14";
+            treeNode15.Text = "Chinese";
             this.tvLanguage.Nodes.AddRange(new System.Windows.Forms.TreeNode[] {
-            treeNode16,
-            treeNode17,
-            treeNode18,
-            treeNode19,
-            treeNode20,
-            treeNode21,
-            treeNode22,
-            treeNode23,
-            treeNode24,
-            treeNode25,
-            treeNode26,
-            treeNode27,
-            treeNode28,
-            treeNode29,
-            treeNode30});
+            treeNode1,
+            treeNode2,
+            treeNode3,
+            treeNode4,
+            treeNode5,
+            treeNode6,
+            treeNode7,
+            treeNode8,
+            treeNode9,
+            treeNode10,
+            treeNode11,
+            treeNode12,
+            treeNode13,
+            treeNode14,
+            treeNode15});
             this.tvLanguage.SelectedImageIndex = 0;
             this.tvLanguage.Size = new System.Drawing.Size(165, 246);
             this.tvLanguage.TabIndex = 0;
@@ -749,16 +757,6 @@ namespace SwitchSDTool
             this.ilGamesExtraLarge.ColorDepth = System.Windows.Forms.ColorDepth.Depth24Bit;
             this.ilGamesExtraLarge.ImageSize = new System.Drawing.Size(256, 256);
             this.ilGamesExtraLarge.TransparentColor = System.Drawing.Color.Transparent;
-            // 
-            // btnExtractCommonKeys
-            // 
-            this.btnExtractCommonKeys.Location = new System.Drawing.Point(4, 167);
-            this.btnExtractCommonKeys.Name = "btnExtractCommonKeys";
-            this.btnExtractCommonKeys.Size = new System.Drawing.Size(141, 31);
-            this.btnExtractCommonKeys.TabIndex = 21;
-            this.btnExtractCommonKeys.Text = "Extract Common_keys.txt";
-            this.btnExtractCommonKeys.UseVisualStyleBackColor = true;
-            this.btnExtractCommonKeys.Click += new System.EventHandler(this.btnExtractCommonKeys_Click);
             // 
             // Form1
             // 

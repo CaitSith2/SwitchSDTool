@@ -3,40 +3,82 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using libhac;
+using LibHac;
 
 namespace NSPVerify
 {
     class Program
     {
+        private static string _path;
+
+        static void PressAnyKey()
+        {
+            if (!_path.Equals(Environment.CurrentDirectory)) return;
+            Console.WriteLine();
+            Console.WriteLine("Press any key to continue");
+            Console.ReadKey();
+        }
+
+        
         static void Main(string[] args)
         {
-            var path = args.Length >= 1 
-                ? args[0] 
+            Console.WriteLine("Nintendo Switch NSP Verifier v1.00");
+            Console.WriteLine("Copyright 2018 CaitSith2");
+            Console.WriteLine("");
+
+            _path = args.Length >= 1 
+                ? string.Join(" ", args)
                 : Environment.CurrentDirectory;
 
-            var fs = new FileSystem(path);
-
-            if (!File.Exists("keys.txt"))
+            if (new[] {"--help", "-h"}.Any(x => x.Equals(_path, StringComparison.InvariantCultureIgnoreCase)))
             {
-                Console.WriteLine("Cannot verify NSPs without keys.txt");
-                Console.WriteLine();
-                Console.WriteLine("Press any key to continue");
-                Console.ReadKey();
+                Console.WriteLine("Usage: NSPVerify [path to NSP directory]");
+                Console.WriteLine("");
+                Console.WriteLine("If the tool is run without specifying a path, it will look for NSPs in the current directory and ALL sub-directories of current directory");
                 return;
             }
 
-            var keyset = ExternalKeys.ReadKeyFile("keys.txt");
+            
+
+            if (!Directory.Exists(_path))
+            {
+                Console.WriteLine("ERROR: Specified directory does not exist.  specify --help for usage information.");
+                return;
+            }
+
+            var fs = new FileSystem(_path);
+
+            var keys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch", "prod.keys");
+            if (File.Exists("keys.txt"))
+                keys = "keys.txt";
+
+            if (!File.Exists(keys))
+            {
+                Console.WriteLine($"Cannot verify NSPs without keys.txt. Either put it in the same directory as this tool,");
+                Console.WriteLine($"or place it in \"{Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch")}\" named as prod.keys");
+                PressAnyKey();
+                return;
+            }
+
+            var keyset = ExternalKeys.ReadKeyFile(keys);
             var badlist = new List<string>();
             var exceptionlist = new List<string>();
 
+            var files = fs.GetFileSystemEntries("", "*.nsp", SearchOption.AllDirectories).ToList();
+            files.AddRange(fs.GetFileSystemEntries("", "*.nsx", SearchOption.AllDirectories));
 
+            if (files.Count == 0)
+            {
+                Console.WriteLine("Error: No NSP/NSX files in specified directory");
+                PressAnyKey();
+                return;
+            }
 
-            foreach (var file in fs.GetFileSystemEntries("", "*.nsp", SearchOption.AllDirectories))
+            foreach (var file in files)
             {
                 var filename = Path.GetFileName(file);
-                var progress = $"Checking {filename}: ";
-                Console.Write(progress);
+                var relativefilename = Util.GetRelativePath(file, Path.GetFullPath(_path));
+                Console.Write($"Checking {filename}: ");
                 try
                 {
                     bool ok = true;
@@ -48,7 +90,7 @@ namespace NSPVerify
                         if (cnmtfile == null)
                         {
                             Console.WriteLine($"\rChecking {filename}: No cnmt.nca file present");
-                            badlist.Add(filename);
+                            badlist.Add(relativefilename);
                             continue;
                         }
 
@@ -61,7 +103,7 @@ namespace NSPVerify
                             {
                                 //Put failure here
                                 Console.WriteLine($"\rChecking {filename}: cnmt.nca file is corrupted");
-                                badlist.Add(filename);
+                                badlist.Add(relativefilename);
                                 cnmtdata.Dispose();
                                 continue;
                             }
@@ -82,7 +124,7 @@ namespace NSPVerify
                                 {
                                     //Put failure here
                                     Console.WriteLine($"\rChecking {filename}: one of the entries required by the cnmt.nca is missing.");
-                                    badlist.Add(filename);
+                                    badlist.Add(relativefilename);
                                     break;
                                 }
 
@@ -113,7 +155,7 @@ namespace NSPVerify
 
                                 //Put failure here
                                 Console.WriteLine($"\rChecking {filename}: one of the entries required by the cnmt.nca is corrupted");
-                                badlist.Add(filename);
+                                badlist.Add(relativefilename);
                                 ok = false;
                                 break;
                             }
@@ -128,16 +170,37 @@ namespace NSPVerify
                 {
                     Console.WriteLine(ex.Message);
                     Console.WriteLine(ex.StackTrace);
-                    exceptionlist.Add($"{filename}{Environment.NewLine}Exception: {ex.Message}{Environment.NewLine}Stack Trace: {ex.StackTrace}{Environment.NewLine}");
+                    exceptionlist.Add($"{relativefilename}{Environment.NewLine}Exception: \"{ex.GetType()}\" {ex.Message}{Environment.NewLine}Stack Trace: {ex.StackTrace}{Environment.NewLine}");
                 }
             }
 
-            File.WriteAllText("Corrupted NSPs.txt", string.Join(Environment.NewLine, badlist));
-            File.WriteAllText("Exception Log.txt", string.Join(Environment.NewLine, exceptionlist));
+            badlist.Insert(0, badlist.Count == 0 
+                ? "None of the files are corrupted. :)" 
+                : "The following NSP/NSX files are corrupted:");
 
-            Console.WriteLine();
-            Console.WriteLine("Press any key to continue");
-            Console.ReadKey();
+            exceptionlist.Insert(0, exceptionlist.Count == 0 
+                ? "No exceptions to log. :)" 
+                : "Exceptions caused while parsing the following NSP/NSX files:");
+
+            try
+            {
+                File.WriteAllText("Corrupted NSPs.txt", string.Join(Environment.NewLine, badlist));
+                File.WriteAllText("Exception Log.txt", string.Join(Environment.NewLine, exceptionlist));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not write the output files \"Corrupted NSPs.txt\" and \"Exception Log.txt\" due to the following exception.");
+                Console.WriteLine($"Exception: \"{ex.GetType()}\" {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}{Environment.NewLine}");
+
+                Console.WriteLine(string.Join(Environment.NewLine, badlist));
+                Console.WriteLine();
+                Console.WriteLine(string.Join(Environment.NewLine, exceptionlist));
+                Console.WriteLine();
+            }
+
+            Console.WriteLine("Done.");
+            PressAnyKey();
         }
     }
 
@@ -157,6 +220,23 @@ namespace NSPVerify
             }
 
             return true;
+        }
+
+        // todo Maybe make less naive
+        public static string GetRelativePath(string path, string basePath)
+        {
+            var directory = new DirectoryInfo(basePath);
+            var file = new FileInfo(path);
+
+            string fullDirectory = directory.FullName;
+            string fullFile = file.FullName;
+
+            if (!fullFile.StartsWith(fullDirectory))
+            {
+                throw new ArgumentException($"{nameof(path)} is not a subpath of {nameof(basePath)}");
+            }
+
+            return fullFile.Substring(fullDirectory.Length + 1);
         }
     }
 }

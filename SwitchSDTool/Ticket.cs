@@ -5,7 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Security.Cryptography;
-using libhac;
+using LibHac;
 
 namespace SwitchSDTool
 {
@@ -87,7 +87,7 @@ namespace SwitchSDTool
             byte[] testEnc = rsa.Encrypt(test, false);
             byte[] testDec = rsa.Decrypt(testEnc, false);
 
-            return libhac.Util.ArraysEqual(test, testDec);
+            return LibHac.Util.ArraysEqual(test, testDec);
         }
 
         private static bool TestPublicPrivateKeySet()

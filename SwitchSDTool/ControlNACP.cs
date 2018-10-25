@@ -4,7 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using libhac;
+using LibHac;
 using SwitchSDTool.Properties;
 
 namespace SwitchSDTool

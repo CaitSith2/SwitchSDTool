@@ -1,0 +1,5 @@
+Version 1.01 - August 29, 2018
+	- Fixed an exception that mainly happens if the program is run on the root directory of an NTFS formatted drive.
+
+Version 1.00 - August 28, 2018
+	- Initial public release :)
