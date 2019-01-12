@@ -55,16 +55,16 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\libhac\libhac\libhac.csproj">
-      <Project>{e156d7b4-dced-47b5-a0cc-40811b2fef0d}</Project>
-      <Name>libhac</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="FodyWeavers.xml" />
     <Content Include="history.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\libhac\src\LibHac\LibHac.csproj">
+      <Project>{f7786ff9-5b77-41f2-bd67-114bd2952f2d}</Project>
+      <Name>LibHac</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Fody.3.1.4\build\Fody.targets" Condition="Exists('..\packages\Fody.3.1.4\build\Fody.targets')" />

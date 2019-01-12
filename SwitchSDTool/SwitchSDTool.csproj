@@ -165,13 +165,13 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\libhac\libhac.Nand\libhac.Nand.csproj">
-      <Project>{a647dd91-ac76-4703-ba93-6cc89139aa1d}</Project>
-      <Name>libhac.Nand</Name>
+    <ProjectReference Include="..\..\libhac\src\LibHac.Nand\LibHac.Nand.csproj">
+      <Project>{04d51950-1389-43ff-8580-fbd2ad57f187}</Project>
+      <Name>LibHac.Nand</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\libhac\libhac\libhac.csproj">
-      <Project>{e156d7b4-dced-47b5-a0cc-40811b2fef0d}</Project>
-      <Name>libhac</Name>
+    <ProjectReference Include="..\..\libhac\src\LibHac\LibHac.csproj">
+      <Project>{f7786ff9-5b77-41f2-bd67-114bd2952f2d}</Project>
+      <Name>LibHac</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using LibHac;
+using LibHac.IO;
 using SwitchSDTool.Properties;
 
 namespace SwitchSDTool
@@ -41,7 +42,7 @@ namespace SwitchSDTool
             Icons = new Bitmap[15];
             Languages = new List<Languages>();
             BaseTitleID = baseTitleID;
-            using (var control = new BinaryReader(romfs.OpenFile("/control.nacp")))
+            using (var control = new BinaryReader(romfs.OpenFile("/control.nacp").AsStream()))
             {
                 var versionBytes = new byte[16];
                 control.BaseStream.Seek(0x3060, SeekOrigin.Begin);
@@ -66,7 +67,7 @@ namespace SwitchSDTool
                     lname = $"/icon_{lname}.dat";
                     if (!romfs.FileExists(lname)) continue;
                     Bitmap icon;
-                    using (var bm = new Bitmap(romfs.OpenFile(lname)))
+                    using (var bm = new Bitmap(romfs.OpenFile(lname).AsStream()))
                     {
                         icon = new Bitmap(bm);
                     }

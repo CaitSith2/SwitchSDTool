@@ -14,8 +14,9 @@ using CTR;
 using SwitchSDTool.Properties;
 using LibHac;
 using LibHac.Nand;
-using LibHac.Savefile;
-using LibHac.Streams;
+using LibHac.IO.Save;
+using LibHac.Npdm;
+using LibHac.IO;
 using Application = System.Windows.Forms.Application;
 
 #pragma warning disable IDE1006 // Naming Styles
@@ -127,8 +128,8 @@ namespace SwitchSDTool
                     privateBytes = sr.ReadBytes(16);
 
                 var sdKeyData = _systemNandFileSystem.OpenFile(sdkeyfile, FileMode.Open, FileAccess.Read);
-                var sdKeySave = new Savefile(sdKeyData);
-                using (var sr = new BinaryReader(sdKeySave.OpenFile("/private")))
+                var sdKeySave = new SaveData(_keyset, new StreamStorage(sdKeyData, true), IntegrityCheckLevel.ErrorOnInvalid, true);
+                using (var sr = new BinaryReader(sdKeySave.OpenFile("/private").AsStream()))
                     //using (var sr = new BinaryReader(sdKeyData))
                     sdBytes = sr.ReadBytes((int) sr.BaseStream.Length);
 
@@ -394,9 +395,9 @@ namespace SwitchSDTool
             if(_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e1")))
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e1"), FileMode.Open, FileAccess.Read))
                 {
-                    var commonTickets = new Savefile(stream);
-                    var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin"));
-                    var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin"));
+                    var commonTickets = new SaveData(_keyset, new StreamStorage(stream, true), IntegrityCheckLevel.ErrorOnInvalid, true );
+                    var ticketList = new BinaryReader(commonTickets.OpenFile("/ticket_list.bin").AsStream());
+                    var tickets = new BinaryReader(commonTickets.OpenFile("/ticket.bin").AsStream());
                     var titleID = ticketList.ReadUInt64();
                     while(titleID != ulong.MaxValue)
                     {
@@ -412,9 +413,9 @@ namespace SwitchSDTool
             if (_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e2")))
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e2"), FileMode.Open, FileAccess.Read))
                 {
-                    var personalTickets = new Savefile(stream);
-                    var ticketList = new BinaryReader(personalTickets.OpenFile("/ticket_list.bin"));
-                    var tickets = new BinaryReader(personalTickets.OpenFile("/ticket.bin"));
+                    var personalTickets = new SaveData(_keyset, new StreamStorage(stream, true), IntegrityCheckLevel.ErrorOnInvalid, true);
+                    var ticketList = new BinaryReader(personalTickets.OpenFile("/ticket_list.bin").AsStream());
+                    var tickets = new BinaryReader(personalTickets.OpenFile("/ticket.bin").AsStream());
 
                     var firstTicket = false;
                     var titleID = ticketList.ReadUInt64();
@@ -476,8 +477,8 @@ namespace SwitchSDTool
             if (_systemNandFileSystem.FileExists(Path.Combine("save", "80000000000000e3")))
                 using (var stream = _systemNandFileSystem.OpenFile(Path.Combine("save", "80000000000000e3"), FileMode.Open, FileAccess.Read))
                 {
-                    var ticketReleaseDates = new Savefile(stream);
-                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("/ticket_list.bin"));
+                    var ticketReleaseDates = new SaveData(_keyset, new StreamStorage(stream, true), IntegrityCheckLevel.ErrorOnInvalid, true);
+                    var ticketList = new BinaryReader(ticketReleaseDates.OpenFile("/ticket_list.bin").AsStream());
                     var titleID = ticketList.ReadUInt64();
                     while (titleID != ulong.MaxValue)
                     {
@@ -710,11 +711,11 @@ namespace SwitchSDTool
                         UpdateStatus($@"Processing {Path.GetFileName(nca)} - Decrypting");
                         InitializeProgress((ulong) naxfile.Length);
 
-                        naxfile.Position = 0;
+                        naxfile.AsStream(true).Position = 0;
 
                         using (var sw = new BinaryWriter(new FileStream(ncafile, FileMode.Create)))
                         {
-                            using (var sr = new BinaryReader(naxfile))
+                            using (var sr = new BinaryReader(naxfile.AsStream(true)))
                             {
                                 byte[] bytes;
                                 do
@@ -761,10 +762,10 @@ namespace SwitchSDTool
         }
 
 
-        private Stream OpenSplitNcaStream(string path)
+        private Storage OpenSplitNcaStream(string path)
         {
             List<string> files = new List<string>();
-            List<Stream> streams = new List<Stream>();
+            IList<IStorage> streams = new List<IStorage>();
 
             if (_sdFileSystem.DirectoryExists(path))
             {
@@ -787,10 +788,10 @@ namespace SwitchSDTool
 
             foreach (var file in files)
             {
-                streams.Add(_sdFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read));
+                streams.Add(new StreamStorage(_sdFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read), true));
             }
 
-            Stream stream;
+            IStorage stream;
             switch (streams.Count)
             {
                 case 0:
@@ -799,16 +800,18 @@ namespace SwitchSDTool
                     stream = streams[0];
                     break;
                 default:
-                    stream = new CombinationStream(streams);
+                    stream = new ConcatenationStorage(streams, true);
+                    //stream = new CombinationStream(streams);
                     break;
             }
 
             bool isNax0;
-            using (var sr = new BinaryReader(stream, Encoding.Default, true))
+            var basestream = stream.AsStream();
+            using (var sr = new BinaryReader(basestream, Encoding.Default, true))
             {
-                stream.Position = 0x20;
+                basestream.Position = 0x20;
                 isNax0 = sr.ReadUInt32() == 0x3058414E;
-                stream.Position = 0;
+                basestream.Position = 0;
             }
 
             if (isNax0 && _sdKey == null)
@@ -817,10 +820,9 @@ namespace SwitchSDTool
                 CheckKeys();
             }
 
-            return isNax0
-                ? new Nax0(_keyset, stream, $@"/registered/{Path.GetFileName(Path.GetDirectoryName(path))?.ToUpperInvariant()}/{Path.GetFileName(path)?.ToLowerInvariant()}", false).Stream
-                : stream;
-
+            return isNax0 
+                ? new Nax0(_keyset, stream, $@"/registered/{Path.GetFileName(Path.GetDirectoryName(path))?.ToUpperInvariant()}/{Path.GetFileName(path)?.ToLowerInvariant()}", false).BaseStorage.WithAccess(FileAccess.Read, true) 
+                : stream.WithAccess(FileAccess.Read, true);
         }
 
         private void ClearGameImageLists()
@@ -931,8 +933,8 @@ namespace SwitchSDTool
 
                 return;
             }
-            var ncaFile = new Nca(_keyset, File.Open(Path.Combine(Configuration.Data.Decryptionpath, entry.NcaId.ToHexString() + ".nca"),FileMode.Open, FileAccess.Read), false);
-            var section = ncaFile.OpenSection(0, false);
+            var ncaFile = new Nca(_keyset, new StreamStorage(File.Open(Path.Combine(Configuration.Data.Decryptionpath, entry.NcaId.ToHexString() + ".nca"), FileMode.Open, FileAccess.Read), false), false);
+            var section = ncaFile.OpenSection(0, false, IntegrityCheckLevel.ErrorOnInvalid, false);
             var romfs = new Romfs(section);
             var nacp = new ControlNACP(romfs, newTitleID);
             ncaFile.Dispose();
@@ -1317,9 +1319,9 @@ namespace SwitchSDTool
                 List<CnmtContentType> types = new List<CnmtContentType>
                 {
                     CnmtContentType.Program,
-                    CnmtContentType.LegalHtml,
+                    CnmtContentType.LegalInformation,
                     CnmtContentType.Data,
-                    CnmtContentType.OfflineManualHtml,
+                    CnmtContentType.HtmlDocument,
                     CnmtContentType.Control
                 };
 
@@ -1342,7 +1344,7 @@ namespace SwitchSDTool
                 }
 
                 types.Remove(CnmtContentType.Control);
-                types.Add(CnmtContentType.UpdatePatch);
+                types.Add(CnmtContentType.DeltaFragment);
 
                 List<CnmtContentEntry> startingEntries = new List<CnmtContentEntry>();
                 List<CnmtContentEntry> controlEntries = new List<CnmtContentEntry>();
@@ -1509,7 +1511,7 @@ namespace SwitchSDTool
                 if(ncaFile == null)
                     throw new Exception($@"{entry.NcaId.ToHexString()}.nca does not exist.");
 
-                using (var sr = new BinaryReader(ncaFile))
+                using (var sr = new BinaryReader(ncaFile.AsStream()))
                 {
                     while (sr.BaseStream.Position != sr.BaseStream.Length)
                     {
@@ -1557,31 +1559,39 @@ namespace SwitchSDTool
 
                 using (var ncaStream = File.Open(ncafile, FileMode.Open, FileAccess.Read))
                 {
-                    using (var ncaData = new Nca(_keyset, ncaStream, true))
+                    try
                     {
-                        if (ncaData.Header.ContentType != ContentType.Meta)
-                            continue;
-                        var section = ncaData.OpenSection(0, false);
-                        var pfs = new Pfs(section);
-                        var cnmt = new Cnmt(pfs.OpenFile(pfs.Files[0]));
-                        if (!_cnmtFiles.TryGetValue($"{cnmt.TitleId:x16}", out var oldcnmt) || oldcnmt.TitleVersion.Version < cnmt.TitleVersion.Version)
-                            _cnmtFiles[$"{cnmt.TitleId:x16}"] = cnmt;
-                        else
-                            continue;
-
-                        ncaStream.Position = 0;
-                        var entry = new CnmtContentEntry
+                        using (var ncaData = new Nca(_keyset, new StreamStorage(ncaStream, true), true))
                         {
-                            NcaId = Path.GetFileNameWithoutExtension(ncafile).ToByte(),
-                            Type = CnmtContentType.Meta,
-                            Size = ncaStream.Length,
-                            Hash = SHA256.Create().ComputeHash(ncaStream)
-                        };
-                        _cnmtNcaFiles[$"{cnmt.TitleId:x16}"] = entry;
+                            if (ncaData.Header.ContentType != ContentType.Meta)
+                                continue;
+                            var section = ncaData.OpenSection(0, false, IntegrityCheckLevel.ErrorOnInvalid, false);
+                            var pfs = new Pfs(section);
+                            var cnmt = new Cnmt(pfs.OpenFile(pfs.Files[0]).AsStream());
+                            if (!_cnmtFiles.TryGetValue($"{cnmt.TitleId:x16}", out var oldcnmt) || oldcnmt.TitleVersion.Version < cnmt.TitleVersion.Version)
+                                _cnmtFiles[$"{cnmt.TitleId:x16}"] = cnmt;
+                            else
+                                continue;
 
-                        var controldata = cnmt.ContentEntries.FirstOrDefault(x => x.Type == CnmtContentType.Control);
-                        if (controldata == null) metas.Add(cnmt);
-                        else controls.Add(cnmt);
+                            ncaStream.Position = 0;
+                            var entry = new CnmtContentEntry
+                            {
+                                NcaId = Path.GetFileNameWithoutExtension(ncafile).ToByte(),
+                                Type = CnmtContentType.Meta,
+                                Size = ncaStream.Length,
+                                Hash = SHA256.Create().ComputeHash(ncaStream)
+                            };
+                            _cnmtNcaFiles[$"{cnmt.TitleId:x16}"] = entry;
+
+                            var controldata = cnmt.ContentEntries.FirstOrDefault(x => x.Type == CnmtContentType.Control);
+                            if (controldata == null) metas.Add(cnmt);
+                            else controls.Add(cnmt);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        UpdateStatus($"Could not process {Path.GetFileName(ncafile)} due to the following Exception: {ex.Message}.",
+                            $"Exception: {ex.Message}{Environment.NewLine}Stack Trace:{ex.StackTrace}");
                     }
                 }
             }
@@ -2156,6 +2166,7 @@ namespace SwitchSDTool
         private Stream _encStream;
         private void button2_Click(object sender, EventArgs e)
         {
+            /*
             var nandsystemfilename = "C:\\Users\\CaitSith2\\Desktop\\SD Swap\\Switch\\Backup\\rawnand.bin";
             _encStream?.Dispose();
             _encStream = File.Open(nandsystemfilename, FileMode.Open, FileAccess.Read);
@@ -2173,7 +2184,7 @@ namespace SwitchSDTool
             _keyset.bis_keys[3] = biskey;
             var nand = new Nand(_encStream, _keyset);
             _sdFileSystem = nand.OpenUserPartition();
-            _systemNandFileSystem = nand.OpenSystemPartition();
+            _systemNandFileSystem = nand.OpenSystemPartition();*/
 
 
 
@@ -2210,8 +2221,6 @@ namespace SwitchSDTool
             UpdateStatus("Extracting Savefiles");
             foreach (var file in _systemNandFileSystem.GetFileSystemEntries("save", "*"))
             {
-                
-                
                 try
                 {
                     var savefilename = Path.GetFileName(file);
@@ -2219,7 +2228,7 @@ namespace SwitchSDTool
                     UpdateStatus($"Extracting \"{savefilename}\" - ");
                     using (var stream = _systemNandFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read))
                     {
-                        var savefiledata = new Savefile(stream);
+                        var savefiledata = new SaveData(_keyset, new StreamStorage(stream, true), IntegrityCheckLevel.ErrorOnInvalid, false);
                         savefiledata.Extract(savewritepath);
                     }
                     AppendStatus("Done.");

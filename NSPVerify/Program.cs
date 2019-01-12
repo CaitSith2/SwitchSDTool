@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using LibHac;
+using LibHac.IO;
 
 namespace NSPVerify
 {
@@ -85,7 +86,7 @@ namespace NSPVerify
                     using (var nspfile = fs.OpenFile(file, FileMode.Open, FileAccess.Read))
                     {
                         
-                        var nspdata = new Pfs(nspfile);
+                        var nspdata = new Pfs(new StreamStorage(nspfile, true));
                         var cnmtfile = nspdata.Files.FirstOrDefault(x => x.Name.ToLowerInvariant().EndsWith(".cnmt.nca"));
                         if (cnmtfile == null)
                         {
@@ -96,7 +97,7 @@ namespace NSPVerify
 
                         var cnmtdata = nspdata.OpenFile(cnmtfile);
                         Cnmt cnmt;
-                        using (var sr = new BinaryReader(cnmtdata))
+                        using (var sr = new BinaryReader(cnmtdata.AsStream()))
                         {
                             var cnmthash = SHA256.Create().ComputeHash(sr.ReadBytes((int) cnmtdata.Length));
                             if (!cnmtfile.Name.ToLowerInvariant().Contains(cnmthash.Take(16).ToArray().ToHexString()))
@@ -108,11 +109,11 @@ namespace NSPVerify
                                 continue;
                             }
 
-                            cnmtdata.Position = 0;
+                            sr.BaseStream.Position = 0;
                             var cnmtnca = new Nca(keyset, cnmtdata, false);
-                            var section = cnmtnca.OpenSection(0, false);
+                            var section = cnmtnca.OpenSection(0, false, IntegrityCheckLevel.ErrorOnInvalid, false);
                             var sectionpfs = new Pfs(section);
-                            cnmt = new Cnmt(sectionpfs.OpenFile(sectionpfs.Files[0]));
+                            cnmt = new Cnmt(sectionpfs.OpenFile(sectionpfs.Files[0]).AsStream());
                         }
                         
                         foreach (var entry in cnmt.ContentEntries)
@@ -120,7 +121,7 @@ namespace NSPVerify
                             var entryfile = nspdata.Files.FirstOrDefault(x => x.Name.ToLowerInvariant().EndsWith(entry.NcaId.ToHexString() + ".nca"));
                             if (entryfile == null)
                             {
-                                if (entry.Type != CnmtContentType.UpdatePatch)
+                                if (entry.Type != CnmtContentType.DeltaFragment)
                                 {
                                     //Put failure here
                                     Console.WriteLine($"\rChecking {filename}: one of the entries required by the cnmt.nca is missing.");
@@ -135,13 +136,13 @@ namespace NSPVerify
                             {
                                 var hash = SHA256.Create();
 
-                                using (var sr = new BinaryReader(entrynca))
+                                using (var sr = new BinaryReader(entrynca.AsStream()))
                                 {
-                                    while (entrynca.Length != entrynca.Position)
+                                    while (entrynca.Length != sr.BaseStream.Position)
                                     {
                                         var entryncadata = sr.ReadBytes(0x100000);
                                         hash.TransformBlock(entryncadata, 0, entryncadata.Length, entryncadata, 0);
-                                        Console.Write($"\rChecking {filename}: {((entrynca.Position * 100.0) / entrynca.Length):0.0}%");
+                                        Console.Write($"\rChecking {filename}: {((sr.BaseStream.Position * 100.0) / entrynca.Length):0.0}%");
                                     }
 
                                     hash.TransformFinalBlock(new byte[0], 0, 0);
