@@ -1,9 +1,12 @@
+Version 1.10 - Jan 12, 2019
+	- Fixed a regression that prevented conversion of NSPs of titles larger than 4GiB.
+	- Fixed an instant crash when the required master keys to decrypt and parse a given title are not present. (It now logs on failure indicating what key is required to process the title.)
+
 Version 1.09 - Oct 25, 2018
 	- more ticket extraction speedups.
 	- Dump .nsx file if the ticket is missing.  Ticket title key will show up as "[TITLE KEY HERE]" in a hex editor.
 	- Add Title keys to .nsx file and rename them automatically once a valid Title key is available.
 	- Dumper will now work with Development units.
-
 
 Version 1.08 - Aug 26, 2018 - (No Longer available)
 	- personal_keys.txt now only includes keys not yet in the database.
