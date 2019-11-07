@@ -4,7 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using LibHac;
-using LibHac.IO;
+using LibHac.Fs;
+using LibHac.Fs.NcaUtils;
 
 namespace NSPVerify
 {
@@ -47,7 +48,7 @@ namespace NSPVerify
                 return;
             }
 
-            var fs = new FileSystem(_path);
+            IFileSystem fs = new LocalFileSystem(_path);
 
             var keys = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch", "prod.keys");
             if (File.Exists("keys.txt"))
@@ -65,8 +66,9 @@ namespace NSPVerify
             var badlist = new List<string>();
             var exceptionlist = new List<string>();
 
-            var files = fs.GetFileSystemEntries("", "*.nsp", SearchOption.AllDirectories).ToList();
-            files.AddRange(fs.GetFileSystemEntries("", "*.nsx", SearchOption.AllDirectories));
+            var files = new List<DirectoryEntry>();
+            files.AddRange(fs.EnumerateEntries("*.nsp", SearchOptions.RecurseSubdirectories));
+            files.AddRange(fs.EnumerateEntries("*.nsx", SearchOptions.RecurseSubdirectories));
 
             if (files.Count == 0)
             {
@@ -75,18 +77,19 @@ namespace NSPVerify
                 return;
             }
 
-            foreach (var file in files)
+            foreach (DirectoryEntry dentry in files)
             {
+                var file = dentry.FullPath;
                 var filename = Path.GetFileName(file);
-                var relativefilename = Util.GetRelativePath(file, Path.GetFullPath(_path));
+                var relativefilename = Util.GetRelativePath(file, "/");
                 Console.Write($"Checking {filename}: ");
                 try
                 {
                     bool ok = true;
-                    using (var nspfile = fs.OpenFile(file, FileMode.Open, FileAccess.Read))
+                    using (var nspfile = fs.OpenFile(file, OpenMode.Read))
                     {
                         
-                        var nspdata = new Pfs(new StreamStorage(nspfile, true));
+                        var nspdata = new PartitionFileSystem(new FileStorage(nspfile));
                         var cnmtfile = nspdata.Files.FirstOrDefault(x => x.Name.ToLowerInvariant().EndsWith(".cnmt.nca"));
                         if (cnmtfile == null)
                         {
@@ -95,11 +98,11 @@ namespace NSPVerify
                             continue;
                         }
 
-                        var cnmtdata = nspdata.OpenFile(cnmtfile);
+                        var cnmtdata = nspdata.OpenFile(cnmtfile, OpenMode.Read);
                         Cnmt cnmt;
                         using (var sr = new BinaryReader(cnmtdata.AsStream()))
                         {
-                            var cnmthash = SHA256.Create().ComputeHash(sr.ReadBytes((int) cnmtdata.Length));
+                            var cnmthash = SHA256.Create().ComputeHash(sr.ReadBytes((int) cnmtdata.GetSize()));
                             if (!cnmtfile.Name.ToLowerInvariant().Contains(cnmthash.Take(16).ToArray().ToHexString()))
                             {
                                 //Put failure here
@@ -110,10 +113,10 @@ namespace NSPVerify
                             }
 
                             sr.BaseStream.Position = 0;
-                            var cnmtnca = new Nca(keyset, cnmtdata, false);
-                            var section = cnmtnca.OpenSection(0, false, IntegrityCheckLevel.ErrorOnInvalid, false);
-                            var sectionpfs = new Pfs(section);
-                            cnmt = new Cnmt(sectionpfs.OpenFile(sectionpfs.Files[0]).AsStream());
+                            var cnmtnca = new Nca(keyset, new FileStorage(cnmtdata));
+                            var section = cnmtnca.OpenStorage(0, IntegrityCheckLevel.ErrorOnInvalid);
+                            var sectionpfs = new PartitionFileSystem(section);
+                            cnmt = new Cnmt(sectionpfs.OpenFile(sectionpfs.Files[0], OpenMode.Read).AsStream());
                         }
                         
                         foreach (var entry in cnmt.ContentEntries)
@@ -132,17 +135,17 @@ namespace NSPVerify
                                 continue;
                             }
 
-                            using (var entrynca = nspdata.OpenFile(entryfile))
+                            using (var entrynca = nspdata.OpenFile(entryfile, OpenMode.Read))
                             {
                                 var hash = SHA256.Create();
 
                                 using (var sr = new BinaryReader(entrynca.AsStream()))
                                 {
-                                    while (entrynca.Length != sr.BaseStream.Position)
+                                    while (entrynca.GetSize() != sr.BaseStream.Position)
                                     {
                                         var entryncadata = sr.ReadBytes(0x100000);
                                         hash.TransformBlock(entryncadata, 0, entryncadata.Length, entryncadata, 0);
-                                        Console.Write($"\rChecking {filename}: {((sr.BaseStream.Position * 100.0) / entrynca.Length):0.0}%");
+                                        Console.Write($"\rChecking {filename}: {((sr.BaseStream.Position * 100.0) / entrynca.GetSize()):0.0}%");
                                     }
 
                                     hash.TransformFinalBlock(new byte[0], 0, 0);
