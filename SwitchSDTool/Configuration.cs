@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -22,7 +22,7 @@ namespace SwitchSDTool
         public string SystemPath = "SYSTEM"; //"A" + Path.VolumeSeparatorChar + Path.DirectorySeparatorChar;
 
         // ReSharper disable once InconsistentNaming
-        public string ETicketRSAKEK = "Replace me with the actual eticket_rsa_kek.";
+        public string ETicketRSAKEK = "Replace me with the actual eticket_rsa_kek or (mariko) eticket_rsa_kek_personalized.";
         public List<Languages> LanguageOrder = new List<Languages>();
         public GameIconSize GameIconSize = GameIconSize.Small;
         public Size MainFormSize = new Size(932, 595);
@@ -51,8 +51,8 @@ namespace SwitchSDTool
         Portuguese,
         Russian,
         Korean,
-        Taiwanese,
-        Chinese
+        [Description("Traditional Chinese")] TraditionalChinese,
+        [Description("Simplified Chinese")] SimplifiedChinese
     };
 
     public enum GameIconSize
